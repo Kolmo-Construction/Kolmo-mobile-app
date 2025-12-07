@@ -44,7 +44,11 @@ export default function CameraScreen({ navigation }) {
         );
         
         // Navigate to review screen with the processed image
-        navigation.navigate('Review', { imageUri: manipulatedImage.uri });
+        // You could also pass projectId here if captured earlier
+        navigation.navigate('Review', { 
+          imageUri: manipulatedImage.uri,
+          // projectId: selectedProjectId // If you have project selection before camera
+        });
       } catch (error) {
         Alert.alert('Error', 'Failed to capture image: ' + error.message);
       } finally {

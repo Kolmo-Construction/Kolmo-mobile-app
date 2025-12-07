@@ -169,17 +169,67 @@ Once TimeZone is enabled:
    - Scan the QR code with the Expo Go app on your physical device
 
 ## Backend Integration
-This mobile app requires a backend service to securely communicate with the Taggun OCR API. Ensure your backend is properly configured with the necessary API keys and endpoints before running the app.
 
-Additionally, the backend must support:
-1. **Receipt Processing**: Forwarding images to Taggun OCR API and normalizing the response.
-2. **Site Photos & Voice Notes**: Handling image and audio uploads with metadata, and providing storage and processing capabilities.
-3. **TimeZone Sessions**: Managing job site definitions and storing automatic check-in/check-out time logs.
+This mobile app is designed to work with your backend service, which handles communication with the Taggun OCR API. The app never communicates directly with Taggun - all receipt images are sent to your backend, which adds the necessary API key and forwards the request.
 
-Ensure your backend endpoints are correctly configured to handle:
-- Image uploads with multipart/form-data
-- JSON metadata for receipts and site entries
-- Location data for TimeZone tracking
+### Backend Requirements
+
+Your backend must implement the following endpoints:
+
+1. **POST /api/receipts/process**
+   - Accepts multipart/form-data with:
+     - `receiptImage`: The image file
+     - `metadata`: JSON string containing:
+       - `projectId`: Identifier for the project this receipt belongs to
+       - `userId`: (Optional) User identifier
+       - `timestamp`: When the receipt was captured
+       - Additional custom metadata
+   - Forwards the image to Taggun OCR API with your API key
+   - Normalizes the Taggun response
+   - Stores the receipt data in your database
+   - Returns a JSON response with:
+     ```json
+     {
+       "success": true,
+       "receiptId": "unique-id",
+       "data": {
+         // Normalized receipt data from Taggun
+       },
+       "metadata": {
+         // Echo back the metadata sent by the app
+       }
+     }
+     ```
+
+2. **Other endpoints** for:
+   - Site photos and voice notes upload
+   - TimeZone session management
+   - Receipt history retrieval
+   - Project management
+
+### App-to-Backend Communication
+
+The app sends the following with each receipt:
+- **Image file**: Compressed and optimized for OCR
+- **Metadata**: Including project ID for categorization
+- **User context**: (If authenticated)
+
+### Development Setup
+
+1. **Configure your backend URL**:
+   Create a `.env` file:
+   ```
+   EXPO_PUBLIC_BACKEND_API_URL=https://your-backend.com/api
+   ```
+
+2. **Run without a backend**:
+   If no backend URL is configured, the app will use mock data for development.
+
+### Security Considerations
+- Your backend should handle Taggun API key security
+- Implement authentication for your endpoints
+- Validate and sanitize all incoming data
+- Implement rate limiting
 
 ## Contributing
 Please read our contributing guidelines before submitting pull requests.

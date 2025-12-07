@@ -16,16 +16,25 @@ export default function ReviewScreen({ route, navigation }) {
     time: '',
   });
 
+  const [projectId, setProjectId] = useState('default-project'); // Default or from user selection
+
   const processReceipt = useCallback(async () => {
     setIsLoading(true);
     try {
-      // If we have an imageUri, process it through Taggun
+      // If we have an imageUri, send it to our backend
       if (imageUri) {
-        const taggunResponse = await processReceiptImage(imageUri);
-        const normalizedData = normalizeReceiptData(taggunResponse);
+        // Prepare metadata including project ID
+        const metadata = {
+          projectId: projectId,
+          timestamp: new Date().toISOString(),
+          // Add other metadata as needed
+        };
+        
+        const backendResponse = await processReceiptImage(imageUri, metadata);
+        const normalizedData = normalizeReceiptData(backendResponse);
         
         if (normalizedData) {
-          setReceiptData(taggunResponse);
+          setReceiptData(backendResponse);
           setEditableData({
             merchant: normalizedData.merchant,
             total: normalizedData.total,
@@ -35,25 +44,33 @@ export default function ReviewScreen({ route, navigation }) {
             time: normalizedData.time,
           });
         } else {
-          throw new Error('No data received from OCR');
+          throw new Error('No data received from backend');
         }
       } 
-      // If we have a receiptId, load existing receipt data
+      // If we have a receiptId, load existing receipt data from backend
       else if (receiptId) {
         // For now, we'll use mock data
-        // In a real app, you would fetch the receipt data from your backend or local storage
+        // In a real app, you would fetch the receipt data from your backend
         await new Promise(resolve => setTimeout(resolve, 500));
-        const mockReceipt = {
-          merchant: { name: 'Saved Store', confidence: 0.95 },
-          totalAmount: { data: 50.00, confidence: 0.98 },
-          taxAmount: { data: 4.00, confidence: 0.90 },
-          currency: 'USD',
-          date: { data: '2024-12-01', confidence: 0.85 },
-          time: { data: '10:30:00', confidence: 0.80 },
-          confidence: 0.90,
+        const mockBackendResponse = {
+          success: true,
+          receiptId: receiptId,
+          data: {
+            merchant: { name: 'Saved Store', confidence: 0.95 },
+            totalAmount: { data: 50.00, confidence: 0.98 },
+            taxAmount: { data: 4.00, confidence: 0.90 },
+            currency: 'USD',
+            date: { data: '2024-12-01', confidence: 0.85 },
+            time: { data: '10:30:00', confidence: 0.80 },
+            confidence: 0.90,
+          },
+          metadata: {
+            projectId: 'default-project',
+            processedAt: '2024-12-01T10:30:00Z'
+          }
         };
-        const normalizedData = normalizeReceiptData(mockReceipt);
-        setReceiptData(mockReceipt);
+        const normalizedData = normalizeReceiptData(mockBackendResponse);
+        setReceiptData(mockBackendResponse);
         setEditableData({
           merchant: normalizedData.merchant,
           total: normalizedData.total,
@@ -69,7 +86,7 @@ export default function ReviewScreen({ route, navigation }) {
     } finally {
       setIsLoading(false);
     }
-  }, [imageUri, receiptId]);
+  }, [imageUri, receiptId, projectId]);
 
   useEffect(() => {
     if (imageUri || receiptId) {
@@ -114,6 +131,24 @@ export default function ReviewScreen({ route, navigation }) {
           </View>
         ) : receiptData ? (
           <>
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Project Information</Text>
+              
+              <View style={styles.field}>
+                <Text style={styles.fieldLabel}>Project ID</Text>
+                <TextInput
+                  style={styles.input}
+                  value={projectId}
+                  onChangeText={setProjectId}
+                  placeholder="Enter project ID"
+                  editable={!receiptId} // Only editable for new receipts
+                />
+                <Text style={styles.helpText}>
+                  This receipt will be associated with this project
+                </Text>
+              </View>
+            </View>
+
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>Receipt Details</Text>
               
@@ -279,6 +314,12 @@ const styles = StyleSheet.create({
     padding: 12,
     fontSize: 16,
     backgroundColor: '#fafafa',
+  },
+  helpText: {
+    fontSize: 12,
+    color: '#888',
+    marginTop: 5,
+    fontStyle: 'italic',
   },
   confidenceText: {
     marginTop: 15,
