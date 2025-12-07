@@ -191,6 +191,46 @@ export default function SitePhotosScreen({ navigation }) {
     }
   };
 
+  const processQueue = async () => {
+    if (!accessToken) {
+      Alert.alert('Authentication Required', 'Please sign in with Google first.');
+      return;
+    }
+    
+    setIsProcessingQueue(true);
+    
+    try {
+      const result = await processUploadQueue(
+        async (item) => {
+          return await uploadToGoogleDrive(
+            accessToken,
+            item.file,
+            item.metadata,
+            item.projectId
+          );
+        },
+        (progress) => {
+          console.log('Upload progress:', progress);
+          // Could update UI here with progress
+        }
+      );
+      
+      await loadQueueStats();
+      
+      if (result.processed > 0) {
+        Alert.alert(
+          'Queue Processed',
+          `Successfully uploaded ${result.processed} item(s). ${result.failed > 0 ? `${result.failed} item(s) failed.` : ''}`
+        );
+      }
+      
+    } catch (error) {
+      console.error('Error processing queue:', error);
+    } finally {
+      setIsProcessingQueue(false);
+    }
+  };
+
   const handleUpload = async () => {
     if (images.length === 0) {
       Alert.alert('No images', 'Please select or take at least one photo first.');
@@ -317,46 +357,6 @@ export default function SitePhotosScreen({ navigation }) {
       );
     } finally {
       setIsUploading(false);
-    }
-  };
-  
-  const processQueue = async () => {
-    if (!accessToken) {
-      Alert.alert('Authentication Required', 'Please sign in with Google first.');
-      return;
-    }
-    
-    setIsProcessingQueue(true);
-    
-    try {
-      const result = await processUploadQueue(
-        async (item) => {
-          return await uploadToGoogleDrive(
-            accessToken,
-            item.file,
-            item.metadata,
-            item.projectId
-          );
-        },
-        (progress) => {
-          console.log('Upload progress:', progress);
-          // Could update UI here with progress
-        }
-      );
-      
-      await loadQueueStats();
-      
-      if (result.processed > 0) {
-        Alert.alert(
-          'Queue Processed',
-          `Successfully uploaded ${result.processed} item(s). ${result.failed > 0 ? `${result.failed} item(s) failed.` : ''}`
-        );
-      }
-      
-    } catch (error) {
-      console.error('Error processing queue:', error);
-    } finally {
-      setIsProcessingQueue(false);
     }
   };
   

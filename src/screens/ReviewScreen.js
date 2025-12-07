@@ -85,8 +85,7 @@ export default function ReviewScreen({ route, navigation }) {
     } finally {
       setIsLoading(false);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [imageUri, receiptId]);
+  }, [imageUri, receiptId, projectId]);
 
   useEffect(() => {
     if (imageUri || receiptId) {
