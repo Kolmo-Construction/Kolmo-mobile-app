@@ -1,14 +1,16 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, SafeAreaView, Image, TextInput, ScrollView, Alert, ActivityIndicator, Platform } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, SafeAreaView, Image, TextInput, ScrollView, Alert, ActivityIndicator, Platform, FlatList } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { Audio } from 'expo-av';
 import * as FileSystem from 'expo-file-system';
 import * as Location from 'expo-location';
 import * as MediaLibrary from 'expo-media-library';
-import { authenticateWithGoogle, uploadToGoogleDrive, createProjectFolder, validateToken } from '../services/googleDriveService';
+import * as Network from 'expo-network';
+import { authenticateWithGoogle, uploadToGoogleDrive } from '../services/googleDriveService';
+import { addToUploadQueue, getUploadQueue, processUploadQueue, getQueueStats, clearCompletedItems } from '../services/uploadQueueService';
 
 export default function SitePhotosScreen({ navigation }) {
-  const [image, setImage] = useState(null);
+  const [images, setImages] = useState([]);
   const [recording, setRecording] = useState(null);
   const [sound, setSound] = useState(null);
   const [description, setDescription] = useState('');
@@ -19,6 +21,8 @@ export default function SitePhotosScreen({ navigation }) {
   const [isAuthenticating, setIsAuthenticating] = useState(false);
   const [accessToken, setAccessToken] = useState(null);
   const [locationPermission, setLocationPermission] = useState(null);
+  const [queueStats, setQueueStats] = useState({ total: 0, pending: 0, failed: 0, completed: 0 });
+  const [isProcessingQueue, setIsProcessingQueue] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -34,10 +38,25 @@ export default function SitePhotosScreen({ navigation }) {
           accuracy: currentLocation.coords.accuracy,
         });
       }
+      
+      // Load queue stats
+      await loadQueueStats();
     })();
   }, []);
+  
+  useEffect(() => {
+    // Check network status and process queue when coming online
+    const checkNetworkAndProcess = async () => {
+      const networkState = await Network.getNetworkStateAsync();
+      if (networkState.isConnected && accessToken && queueStats.pending > 0) {
+        await processQueue();
+      }
+    };
+    
+    checkNetworkAndProcess();
+  }, [accessToken]);
 
-  const pickImage = async () => {
+  const pickImages = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== 'granted') {
       Alert.alert('Permission needed', 'Sorry, we need camera roll permissions to select photos.');
@@ -46,26 +65,36 @@ export default function SitePhotosScreen({ navigation }) {
 
     let result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
+      allowsEditing: false,
       aspect: [4, 3],
-      quality: 1,
+      quality: 0.8,
       exif: true,
+      allowsMultipleSelection: true,
+      selectionLimit: 10, // Allow up to 10 images
     });
 
     if (!result.canceled) {
-      const asset = result.assets[0];
-      // Try to get more EXIF data using MediaLibrary
-      try {
-        const assetInfo = await MediaLibrary.getAssetInfoAsync(asset.assetId || asset.id);
-        setImage({
-          ...asset,
-          exif: assetInfo.exif || {},
-          location: assetInfo.location,
-        });
-      } catch (error) {
-        console.log('Could not get detailed EXIF:', error);
-        setImage(asset);
-      }
+      const newImages = await Promise.all(result.assets.map(async (asset) => {
+        try {
+          const assetInfo = await MediaLibrary.getAssetInfoAsync(asset.assetId || asset.id);
+          return {
+            ...asset,
+            id: asset.assetId || Date.now().toString() + Math.random(),
+            exif: assetInfo.exif || {},
+            location: assetInfo.location,
+          };
+        } catch (error) {
+          console.log('Could not get detailed EXIF:', error);
+          return {
+            ...asset,
+            id: asset.assetId || Date.now().toString() + Math.random(),
+            exif: {},
+            location: null,
+          };
+        }
+      }));
+      
+      setImages(prev => [...prev, ...newImages]);
     }
   };
 
@@ -77,9 +106,9 @@ export default function SitePhotosScreen({ navigation }) {
     }
 
     let result = await ImagePicker.launchCameraAsync({
-      allowsEditing: true,
+      allowsEditing: false,
       aspect: [4, 3],
-      quality: 1,
+      quality: 0.8,
       exif: true,
     });
 
@@ -96,12 +125,19 @@ export default function SitePhotosScreen({ navigation }) {
         };
       }
       
-      setImage({
+      const newImage = {
         ...asset,
+        id: Date.now().toString() + Math.random(),
         exif: asset.exif || {},
         location: currentLocation,
-      });
+      };
+      
+      setImages(prev => [...prev, newImage]);
     }
+  };
+
+  const removeImage = (imageId) => {
+    setImages(prev => prev.filter(img => img.id !== imageId));
   };
 
   const startRecording = async () => {
@@ -156,8 +192,8 @@ export default function SitePhotosScreen({ navigation }) {
   };
 
   const handleUpload = async () => {
-    if (!image) {
-      Alert.alert('No image', 'Please select or take a photo first.');
+    if (images.length === 0) {
+      Alert.alert('No images', 'Please select or take at least one photo first.');
       return;
     }
     
@@ -183,78 +219,85 @@ export default function SitePhotosScreen({ navigation }) {
         description,
         tags: tags.split(',').map(tag => tag.trim()).filter(tag => tag),
         timestamp: new Date().toISOString(),
-        location: image.location || location,
-        exif: image.exif || {},
+        location: location,
+        exif: {},
         deviceInfo: {
           platform: Platform.OS,
         }
       };
       
-      // Upload image to Google Drive
-      const imageFilename = `site_photo_${Date.now()}_${projectId}.jpg`;
-      const imageFile = {
-        uri: image.uri,
-        name: imageFilename,
-        type: 'image/jpeg',
-      };
+      // Add each image to the upload queue
+      for (const image of images) {
+        const imageFilename = `site_photo_${Date.now()}_${projectId}_${image.id}.jpg`;
+        
+        await addToUploadQueue({
+          type: 'image',
+          file: {
+            uri: image.uri,
+            name: imageFilename,
+            type: 'image/jpeg',
+          },
+          metadata: {
+            ...metadata,
+            exif: image.exif || {},
+            location: image.location || location,
+            fileType: 'image',
+            imageId: image.id,
+          },
+          projectId,
+        });
+      }
       
-      const imageUploadResult = await uploadToGoogleDrive(
-        accessToken,
-        imageFile,
-        { ...metadata, fileType: 'image' },
-        projectId
-      );
-      
-      // Upload voice note if exists
-      let voiceUploadResult = null;
+      // Add voice note to queue if exists
       if (sound) {
         const audioUri = sound._uri || sound.uri;
         const audioFilename = `voice_note_${Date.now()}_${projectId}.m4a`;
-        const audioFile = {
-          uri: audioUri,
-          name: audioFilename,
-          type: 'audio/m4a',
-        };
         
-        voiceUploadResult = await uploadToGoogleDrive(
-          accessToken,
-          audioFile,
-          { ...metadata, fileType: 'audio' },
-          projectId
-        );
+        await addToUploadQueue({
+          type: 'audio',
+          file: {
+            uri: audioUri,
+            name: audioFilename,
+            type: 'audio/m4a',
+          },
+          metadata: {
+            ...metadata,
+            fileType: 'audio',
+          },
+          projectId,
+        });
       }
       
-      // Upload metadata as a JSON file
+      // Add metadata file to queue
       const metadataFilename = `metadata_${Date.now()}_${projectId}.json`;
-      
-      // Create a temporary file for metadata
       const metadataUri = FileSystem.cacheDirectory + metadataFilename;
       await FileSystem.writeAsStringAsync(metadataUri, JSON.stringify(metadata, null, 2));
       
-      const metadataFile = {
-        uri: metadataUri,
-        name: metadataFilename,
-        type: 'application/json',
-      };
+      await addToUploadQueue({
+        type: 'metadata',
+        file: {
+          uri: metadataUri,
+          name: metadataFilename,
+          type: 'application/json',
+        },
+        metadata: {
+          ...metadata,
+          fileType: 'metadata',
+        },
+        projectId,
+      });
       
-      const metadataUploadResult = await uploadToGoogleDrive(
-        accessToken,
-        metadataFile,
-        { ...metadata, fileType: 'metadata' },
-        projectId
-      );
+      // Process the queue
+      await processQueue();
       
       Alert.alert(
-        'Upload Successful',
-        `Files uploaded to Google Drive:\n` +
-        `• Image: ${imageUploadResult.name}\n` +
-        `${voiceUploadResult ? `• Voice Note: ${voiceUploadResult.name}\n` : ''}` +
-        `• Metadata: ${metadataUploadResult.name}`,
+        'Upload Queued',
+        `${images.length} image(s) and ${sound ? '1 voice note' : 'no voice notes'} have been added to the upload queue. ` +
+        `They will be uploaded when you have an internet connection.`,
         [{ 
           text: 'OK', 
           onPress: () => {
-            // Reset form
-            setImage(null);
+            // Reset form but keep images in case user wants to add more
             setDescription('');
             setTags('');
             setSound(null);
@@ -263,19 +306,82 @@ export default function SitePhotosScreen({ navigation }) {
       );
       
     } catch (error) {
-      console.error('Upload error:', error);
+      console.error('Error adding to upload queue:', error);
       Alert.alert(
         'Upload Failed',
-        error.message || 'Failed to upload files to Google Drive. Please try again.',
+        error.message || 'Failed to add files to upload queue. Please try again.',
         [
           { text: 'Try Again', onPress: () => handleUpload() },
-          { text: 'Re-authenticate', onPress: handleGoogleAuth },
           { text: 'Cancel', style: 'cancel' },
         ]
       );
     } finally {
       setIsUploading(false);
     }
+  };
+  
+  const processQueue = async () => {
+    if (!accessToken) {
+      Alert.alert('Authentication Required', 'Please sign in with Google first.');
+      return;
+    }
+    
+    setIsProcessingQueue(true);
+    
+    try {
+      const result = await processUploadQueue(
+        async (item) => {
+          return await uploadToGoogleDrive(
+            accessToken,
+            item.file,
+            item.metadata,
+            item.projectId
+          );
+        },
+        (progress) => {
+          console.log('Upload progress:', progress);
+          // Could update UI here with progress
+        }
+      );
+      
+      await loadQueueStats();
+      
+      if (result.processed > 0) {
+        Alert.alert(
+          'Queue Processed',
+          `Successfully uploaded ${result.processed} item(s). ${result.failed > 0 ? `${result.failed} item(s) failed.` : ''}`
+        );
+      }
+      
+    } catch (error) {
+      console.error('Error processing queue:', error);
+    } finally {
+      setIsProcessingQueue(false);
+    }
+  };
+  
+  const loadQueueStats = async () => {
+    const stats = await getQueueStats();
+    setQueueStats(stats);
+  };
+  
+  const clearQueue = async () => {
+    Alert.alert(
+      'Clear Upload Queue',
+      'Are you sure you want to clear all completed uploads from the queue?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { 
+          text: 'Clear', 
+          style: 'destructive',
+          onPress: async () => {
+            await clearCompletedItems();
+            await loadQueueStats();
+            Alert.alert('Queue Cleared', 'Completed uploads have been removed from the queue.');
+          }
+        },
+      ]
+    );
   };
 
   return (
@@ -288,15 +394,41 @@ export default function SitePhotosScreen({ navigation }) {
           <TouchableOpacity style={styles.actionButton} onPress={takePhoto}>
             <Text style={styles.actionButtonText}>Take Photo</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.actionButton} onPress={pickImage}>
-            <Text style={styles.actionButtonText}>Pick from Gallery</Text>
+          <TouchableOpacity style={styles.actionButton} onPress={pickImages}>
+            <Text style={styles.actionButtonText}>Pick Multiple</Text>
           </TouchableOpacity>
         </View>
 
-        {image && (
-          <View style={styles.imageContainer}>
-            <Image source={{ uri: image.uri }} style={styles.image} />
-            <Text style={styles.imageInfo}>Image selected</Text>
+        {images.length > 0 && (
+          <View style={styles.imagesSection}>
+            <View style={styles.imagesHeader}>
+              <Text style={styles.sectionTitle}>Selected Images ({images.length})</Text>
+              <TouchableOpacity 
+                style={styles.clearButton}
+                onPress={() => setImages([])}
+              >
+                <Text style={styles.clearButtonText}>Clear All</Text>
+              </TouchableOpacity>
+            </View>
+            
+            <FlatList
+              horizontal
+              data={images}
+              keyExtractor={(item) => item.id}
+              renderItem={({ item }) => (
+                <View style={styles.imageThumbnailContainer}>
+                  <Image source={{ uri: item.uri }} style={styles.imageThumbnail} />
+                  <TouchableOpacity 
+                    style={styles.removeImageButton}
+                    onPress={() => removeImage(item.id)}
+                  >
+                    <Text style={styles.removeImageButtonText}>×</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+              contentContainerStyle={styles.imagesList}
+              showsHorizontalScrollIndicator={false}
+            />
           </View>
         )}
 
@@ -364,6 +496,50 @@ export default function SitePhotosScreen({ navigation }) {
           />
         </View>
 
+        {queueStats.total > 0 && (
+          <View style={styles.queueSection}>
+            <Text style={styles.sectionTitle}>Upload Queue</Text>
+            <View style={styles.queueStats}>
+              <View style={styles.queueStat}>
+                <Text style={styles.queueStatValue}>{queueStats.pending}</Text>
+                <Text style={styles.queueStatLabel}>Pending</Text>
+              </View>
+              <View style={styles.queueStat}>
+                <Text style={styles.queueStatValue}>{queueStats.processing}</Text>
+                <Text style={styles.queueStatLabel}>Processing</Text>
+              </View>
+              <View style={styles.queueStat}>
+                <Text style={styles.queueStatValue}>{queueStats.failed}</Text>
+                <Text style={[styles.queueStatLabel, styles.failedText]}>Failed</Text>
+              </View>
+              <View style={styles.queueStat}>
+                <Text style={styles.queueStatValue}>{queueStats.completed}</Text>
+                <Text style={[styles.queueStatLabel, styles.completedText]}>Completed</Text>
+              </View>
+            </View>
+            
+            <View style={styles.queueActions}>
+              <TouchableOpacity 
+                style={[styles.queueButton, styles.processButton]}
+                onPress={processQueue}
+                disabled={isProcessingQueue || queueStats.pending === 0}
+              >
+                <Text style={styles.queueButtonText}>
+                  {isProcessingQueue ? 'Processing...' : 'Process Queue'}
+                </Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity 
+                style={[styles.queueButton, styles.clearQueueButton]}
+                onPress={clearQueue}
+                disabled={queueStats.completed === 0}
+              >
+                <Text style={styles.queueButtonText}>Clear Completed</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
+
         <View style={styles.authSection}>
           {accessToken ? (
             <View style={styles.authStatus}>
@@ -392,20 +568,22 @@ export default function SitePhotosScreen({ navigation }) {
 
         <View style={styles.uploadSection}>
           <TouchableOpacity 
-            style={[styles.uploadButton, (isUploading || !image) && styles.uploadButtonDisabled]} 
+            style={[styles.uploadButton, (isUploading || images.length === 0) && styles.uploadButtonDisabled]} 
             onPress={handleUpload}
-            disabled={isUploading || !image}
+            disabled={isUploading || images.length === 0}
           >
             {isUploading ? (
               <ActivityIndicator color="white" />
             ) : (
-              <Text style={styles.uploadButtonText}>Upload to Google Drive</Text>
+              <Text style={styles.uploadButtonText}>
+                {images.length > 1 ? `Upload ${images.length} Images` : 'Upload to Google Drive'}
+              </Text>
             )}
           </TouchableOpacity>
-          {!image && (
-            <Text style={styles.uploadHelpText}>Select or take a photo first</Text>
+          {images.length === 0 && (
+            <Text style={styles.uploadHelpText}>Select or take at least one photo first</Text>
           )}
-          {!accessToken && image && (
+          {!accessToken && images.length > 0 && (
             <Text style={styles.uploadHelpText}>Sign in with Google to upload</Text>
           )}
         </View>
@@ -581,6 +759,108 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#1565C0',
     fontWeight: '500',
+  },
+  imagesSection: {
+    marginBottom: 20,
+  },
+  imagesHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  clearButton: {
+    backgroundColor: '#f44336',
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 4,
+  },
+  clearButtonText: {
+    color: 'white',
+    fontSize: 12,
+    fontWeight: '500',
+  },
+  imagesList: {
+    paddingVertical: 5,
+  },
+  imageThumbnailContainer: {
+    position: 'relative',
+    marginRight: 10,
+  },
+  imageThumbnail: {
+    width: 80,
+    height: 80,
+    borderRadius: 8,
+  },
+  removeImageButton: {
+    position: 'absolute',
+    top: -5,
+    right: -5,
+    backgroundColor: '#f44336',
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  removeImageButtonText: {
+    color: 'white',
+    fontSize: 14,
+    fontWeight: 'bold',
+  },
+  queueSection: {
+    marginBottom: 20,
+    backgroundColor: '#f8f9fa',
+    padding: 15,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#e9ecef',
+  },
+  queueStats: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    marginBottom: 15,
+  },
+  queueStat: {
+    alignItems: 'center',
+  },
+  queueStatValue: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#333',
+  },
+  queueStatLabel: {
+    fontSize: 12,
+    color: '#666',
+    marginTop: 2,
+  },
+  failedText: {
+    color: '#f44336',
+  },
+  completedText: {
+    color: '#4CAF50',
+  },
+  queueActions: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  queueButton: {
+    flex: 1,
+    paddingVertical: 10,
+    borderRadius: 8,
+    alignItems: 'center',
+    marginHorizontal: 5,
+  },
+  processButton: {
+    backgroundColor: '#2196F3',
+  },
+  clearQueueButton: {
+    backgroundColor: '#6c757d',
+  },
+  queueButtonText: {
+    color: 'white',
+    fontSize: 14,
+    fontWeight: '600',
   },
   recordingText: {
     marginTop: 10,
