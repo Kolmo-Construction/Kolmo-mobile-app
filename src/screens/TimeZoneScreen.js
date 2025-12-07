@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, SafeAreaView, Switch, ScrollView, Alert } from 'react-native';
 import * as Location from 'expo-location';
-import * as TaskManager from 'expo-task-manager';
 
 const LOCATION_TASK_NAME = 'background-location-task';
 
@@ -127,7 +126,7 @@ export default function TimeZoneScreen() {
               onPress={() => simulateCheckIn(site)}
             >
               <Text style={styles.siteName}>{site.name}</Text>
-              <Text style={.siteDetails}>Radius: {site.radius}m</Text>
+              <Text style={styles.siteDetails}>Radius: {site.radius}m</Text>
               <Text style={styles.checkInText}>Tap to simulate check-in</Text>
             </TouchableOpacity>
           ))}
