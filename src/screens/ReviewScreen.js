@@ -91,7 +91,7 @@ export default function ReviewScreen({ route, navigation }) {
     if (imageUri || receiptId) {
       processReceipt();
     }
-  }, [imageUri, receiptId]);
+  }, [imageUri, receiptId, processReceipt]);
 
   const handleSave = () => {
     // Here you would save the receipt data to local storage or send to your backend
