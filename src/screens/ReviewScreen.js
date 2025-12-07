@@ -4,7 +4,7 @@ import axios from 'axios';
 import { processReceiptImage, normalizeReceiptData } from '../services/taggunService';
 
 export default function ReviewScreen({ route, navigation }) {
-  const { imageUri } = route.params || {};
+  const { imageUri, receiptId } = route.params || {};
   const [isLoading, setIsLoading] = useState(false);
   const [receiptData, setReceiptData] = useState(null);
   const [editableData, setEditableData] = useState({
@@ -19,14 +19,41 @@ export default function ReviewScreen({ route, navigation }) {
   const processReceipt = useCallback(async () => {
     setIsLoading(true);
     try {
-      // Process the image through Taggun (mock for now)
-      const taggunResponse = await processReceiptImage(imageUri);
-      
-      // Normalize the response for the app
-      const normalizedData = normalizeReceiptData(taggunResponse);
-      
-      if (normalizedData) {
-        setReceiptData(taggunResponse);
+      // If we have an imageUri, process it through Taggun
+      if (imageUri) {
+        const taggunResponse = await processReceiptImage(imageUri);
+        const normalizedData = normalizeReceiptData(taggunResponse);
+        
+        if (normalizedData) {
+          setReceiptData(taggunResponse);
+          setEditableData({
+            merchant: normalizedData.merchant,
+            total: normalizedData.total,
+            tax: normalizedData.tax,
+            currency: normalizedData.currency,
+            date: normalizedData.date,
+            time: normalizedData.time,
+          });
+        } else {
+          throw new Error('No data received from OCR');
+        }
+      } 
+      // If we have a receiptId, load existing receipt data
+      else if (receiptId) {
+        // For now, we'll use mock data
+        // In a real app, you would fetch the receipt data from your backend or local storage
+        await new Promise(resolve => setTimeout(resolve, 500));
+        const mockReceipt = {
+          merchant: { name: 'Saved Store', confidence: 0.95 },
+          totalAmount: { data: 50.00, confidence: 0.98 },
+          taxAmount: { data: 4.00, confidence: 0.90 },
+          currency: 'USD',
+          date: { data: '2024-12-01', confidence: 0.85 },
+          time: { data: '10:30:00', confidence: 0.80 },
+          confidence: 0.90,
+        };
+        const normalizedData = normalizeReceiptData(mockReceipt);
+        setReceiptData(mockReceipt);
         setEditableData({
           merchant: normalizedData.merchant,
           total: normalizedData.total,
@@ -35,22 +62,20 @@ export default function ReviewScreen({ route, navigation }) {
           date: normalizedData.date,
           time: normalizedData.time,
         });
-      } else {
-        throw new Error('No data received from OCR');
       }
     } catch (error) {
-      Alert.alert('Processing Error', 'Failed to process receipt. Please try again.');
+      Alert.alert('Processing Error', 'Failed to load receipt data. Please try again.');
       console.error(error);
     } finally {
       setIsLoading(false);
     }
-  }, [imageUri]);
+  }, [imageUri, receiptId]);
 
   useEffect(() => {
-    if (imageUri) {
+    if (imageUri || receiptId) {
       processReceipt();
     }
-  }, [imageUri, processReceipt]);
+  }, [imageUri, receiptId, processReceipt]);
 
   const handleSave = () => {
     // Here you would save the receipt data to local storage or send to your backend
@@ -70,12 +95,17 @@ export default function ReviewScreen({ route, navigation }) {
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <Text style={styles.title}>Review & Edit</Text>
         
-        {imageUri && (
+        {imageUri ? (
           <View style={styles.imageContainer}>
             <Image source={{ uri: imageUri }} style={styles.image} />
             <Text style={styles.imageCaption}>Captured Receipt</Text>
           </View>
-        )}
+        ) : receiptId ? (
+          <View style={styles.imageContainer}>
+            <Text style={styles.savedReceiptText}>Saved Receipt</Text>
+            <Text style={styles.savedReceiptSubtext}>Receipt ID: {receiptId}</Text>
+          </View>
+        ) : null}
 
         {isLoading ? (
           <View style={styles.loadingContainer}>
@@ -285,6 +315,17 @@ const styles = StyleSheet.create({
     color: '#4CAF50',
     fontSize: 16,
     fontWeight: '600',
+  },
+  savedReceiptText: {
+    fontSize: 20,
+    fontWeight: '600',
+    color: '#4CAF50',
+    marginBottom: 5,
+  },
+  savedReceiptSubtext: {
+    fontSize: 14,
+    color: '#666',
+    fontStyle: 'italic',
   },
   noDataText: {
     textAlign: 'center',
