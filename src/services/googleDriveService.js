@@ -81,19 +81,16 @@ export const uploadToGoogleDrive = async (accessToken, file, metadata = {}, proj
       mimeType: file.type || 'image/jpeg',
     };
 
-    // For small files (<5MB), we can use simple upload
+    // For React Native, we need to handle FormData differently
     const form = new FormData();
-    form.append('metadata', JSON.stringify(fileMetadata), {
-      type: 'application/json',
-    });
+    form.append('metadata', JSON.stringify(fileMetadata));
     
-    // Convert file URI to blob
-    const response = await fetch(file.uri);
-    const blob = await response.blob();
-    
-    form.append('file', blob, {
+    // In React Native, we can append the file directly
+    // The file object should have uri, type, and name
+    form.append('file', {
+      uri: file.uri,
       type: file.type || 'image/jpeg',
-      filename: file.name || `site_photo_${Date.now()}.jpg`,
+      name: file.name || `site_photo_${Date.now()}.jpg`,
     });
 
     const uploadResponse = await fetch(
@@ -102,6 +99,7 @@ export const uploadToGoogleDrive = async (accessToken, file, metadata = {}, proj
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${accessToken}`,
+          'Content-Type': 'multipart/form-data',
         },
         body: form,
       }

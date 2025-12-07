@@ -27,7 +27,6 @@ export default function ReviewScreen({ route, navigation }) {
         const metadata = {
           projectId: projectId,
           timestamp: new Date().toISOString(),
-          // Add other metadata as needed
         };
         
         const backendResponse = await processReceiptImage(imageUri, metadata);
@@ -86,13 +85,14 @@ export default function ReviewScreen({ route, navigation }) {
     } finally {
       setIsLoading(false);
     }
-  }, [imageUri, receiptId, projectId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [imageUri, receiptId]);
 
   useEffect(() => {
     if (imageUri || receiptId) {
       processReceipt();
     }
-  }, [imageUri, receiptId, processReceipt]);
+  }, [imageUri, receiptId]);
 
   const handleSave = () => {
     // Here you would save the receipt data to local storage or send to your backend

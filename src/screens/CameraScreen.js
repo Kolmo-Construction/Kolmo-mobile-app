@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, SafeAreaView, Alert, ActivityIndicator } from 'react-native';
-import { CameraView, useCameraPermissions } from 'expo-camera';
+import { Camera, useCameraPermissions } from 'expo-camera';
 import * as ImageManipulator from 'expo-image-manipulator';
 
 export default function CameraScreen({ navigation }) {
@@ -44,10 +44,8 @@ export default function CameraScreen({ navigation }) {
         );
         
         // Navigate to review screen with the processed image
-        // You could also pass projectId here if captured earlier
         navigation.navigate('Review', { 
           imageUri: manipulatedImage.uri,
-          // projectId: selectedProjectId // If you have project selection before camera
         });
       } catch (error) {
         Alert.alert('Error', 'Failed to capture image: ' + error.message);
@@ -63,7 +61,7 @@ export default function CameraScreen({ navigation }) {
 
   return (
     <SafeAreaView style={styles.container}>
-      <CameraView style={styles.camera} facing={facing} ref={cameraRef}>
+      <Camera style={styles.camera} type={facing} ref={cameraRef}>
         <View style={styles.overlay}>
           <View style={styles.guideFrame} />
           <Text style={styles.guideText}>Align receipt within the frame</Text>
@@ -85,7 +83,7 @@ export default function CameraScreen({ navigation }) {
           </TouchableOpacity>
           <View style={styles.placeholder} />
         </View>
-      </CameraView>
+      </Camera>
     </SafeAreaView>
   );
 }
