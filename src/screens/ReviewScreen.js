@@ -98,6 +98,14 @@ export default function ReviewScreen({ route, navigation }) {
           date: normalizedData.date,
           time: normalizedData.time,
         });
+        // Initialize line items for existing receipt
+        setLineItems([{
+          id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
+          description: '',
+          quantity: 1,
+          amount: '',
+          category: selectedCategory
+        }]);
       }
     } catch (error) {
       Alert.alert('Processing Error', 'Failed to load receipt data. Please try again.');
@@ -105,7 +113,7 @@ export default function ReviewScreen({ route, navigation }) {
     } finally {
       setIsLoading(false);
     }
-  }, [imageUri, receiptId, projectId]);
+  }, [imageUri, receiptId, projectId, selectedCategory]);
 
   useEffect(() => {
     if (imageUri || receiptId) {
