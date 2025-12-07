@@ -122,6 +122,11 @@ const mockBackendResponse = async (imageUri, metadata) => {
           quantity: 2,
           amount: 50.00,
         },
+        {
+          description: 'Shipping Fee',
+          quantity: 1,
+          amount: 9.99,
+        },
       ],
       confidence: 0.89,
     },
