@@ -226,7 +226,6 @@ export default function SitePhotosScreen({ navigation }) {
       
       // Upload metadata as a JSON file
       const metadataFilename = `metadata_${Date.now()}_${projectId}.json`;
-      const metadataBlob = new Blob([JSON.stringify(metadata, null, 2)], { type: 'application/json' });
       
       // Create a temporary file for metadata
       const metadataUri = FileSystem.cacheDirectory + metadataFilename;
