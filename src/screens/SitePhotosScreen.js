@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, SafeAreaView, Image, TextInput, ScrollView, Alert, ActivityIndicator, Platform, FlatList } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { Audio } from 'expo-av';
@@ -24,6 +24,11 @@ export default function SitePhotosScreen({ navigation }) {
   const [queueStats, setQueueStats] = useState({ total: 0, pending: 0, failed: 0, completed: 0 });
   const [isProcessingQueue, setIsProcessingQueue] = useState(false);
 
+  const loadQueueStats = useCallback(async () => {
+    const stats = await getQueueStats();
+    setQueueStats(stats);
+  }, []);
+
   useEffect(() => {
     (async () => {
       // Request location permission
@@ -42,9 +47,9 @@ export default function SitePhotosScreen({ navigation }) {
       // Load queue stats
       await loadQueueStats();
     })();
-  }, []);
+  }, [loadQueueStats]);
   
-  const processQueue = async () => {
+  const processQueue = useCallback(async () => {
     if (!accessToken) {
       Alert.alert('Authentication Required', 'Please sign in with Google first.');
       return;
@@ -82,7 +87,7 @@ export default function SitePhotosScreen({ navigation }) {
     } finally {
       setIsProcessingQueue(false);
     }
-  };
+  }, [accessToken, loadQueueStats]);
 
   useEffect(() => {
     // Check network status and process queue when coming online
@@ -94,7 +99,7 @@ export default function SitePhotosScreen({ navigation }) {
     };
     
     checkNetworkAndProcess();
-  }, [accessToken]);
+  }, [accessToken, queueStats.pending]);
 
   const pickImages = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -360,10 +365,6 @@ export default function SitePhotosScreen({ navigation }) {
     }
   };
   
-  const loadQueueStats = async () => {
-    const stats = await getQueueStats();
-    setQueueStats(stats);
-  };
   
   const clearQueue = async () => {
     Alert.alert(
