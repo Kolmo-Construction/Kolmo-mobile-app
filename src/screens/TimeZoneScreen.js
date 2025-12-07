@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, SafeAreaView, Switch, ScrollView, Alert, TextInput, Modal, Button } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, SafeAreaView, Switch, ScrollView, Alert, TextInput, Modal } from 'react-native';
 import * as Location from 'expo-location';
 import * as TaskManager from 'expo-task-manager';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -20,18 +20,14 @@ TaskManager.defineTask(LOCATION_TASK_NAME, async ({ data, error }) => {
     const location = locations[0];
     
     if (location) {
-      // This is where we would process the location
-      // For now, we'll just log it
       console.log('Background location update:', {
         latitude: location.coords.latitude,
         longitude: location.coords.longitude,
         timestamp: new Date(location.timestamp).toISOString(),
       });
       
-      // In a real implementation, we would:
-      // 1. Load job sites from storage
-      // 2. Check if location is within any site radius
-      // 3. Update sessions accordingly
+      // In a real implementation, we would process the location here
+      // For now, we'll just log it
     }
   }
 });
@@ -50,10 +46,19 @@ export default function TimeZoneScreen() {
     longitude: '',
     radius: '100',
   });
+  
+  const subscriptionRef = useRef(null);
 
   useEffect(() => {
     loadSavedData();
     checkLocationPermission();
+    
+    // Cleanup on unmount
+    return () => {
+      if (subscriptionRef.current) {
+        subscriptionRef.current.remove();
+      }
+    };
   }, []);
 
   const loadSavedData = async () => {
@@ -290,15 +295,7 @@ export default function TimeZoneScreen() {
 
   const simulateCheckOut = () => {
     if (!currentSession) return;
-    const updatedSession = {
-      ...currentSession,
-      checkOutTime: new Date().toLocaleTimeString(),
-    };
-    setSessions(prev => prev.map(s => 
-      s.id === currentSession.id ? updatedSession : s
-    ));
-    setCurrentSession(null);
-    Alert.alert('Checked Out', `You have checked out from ${updatedSession.siteName}`);
+    checkOutFromSite(new Date().toISOString());
   };
 
   return (
@@ -330,10 +327,15 @@ export default function TimeZoneScreen() {
           {currentSession ? (
             <View style={styles.sessionCard}>
               <Text style={styles.sessionSite}>{currentSession.siteName}</Text>
-              <Text style={styles.sessionTime}>Checked in at: {currentSession.checkInTime}</Text>
-              <TouchableOpacity style={styles.checkOutButton} onPress={simulateCheckOut}>
-                <Text style={styles.checkOutButtonText}>Check Out Now</Text>
-              </TouchableOpacity>
+              <Text style={styles.sessionTime}>Checked in at: {new Date(currentSession.checkInTime).toLocaleString()}</Text>
+              <View style={styles.buttonRow}>
+                <TouchableOpacity style={[styles.checkOutButton, styles.manualButton]} onPress={manualCheckOut}>
+                  <Text style={styles.checkOutButtonText}>Manual Check Out</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={[styles.checkOutButton, styles.autoButton]} onPress={simulateCheckOut}>
+                  <Text style={styles.checkOutButtonText}>Auto Check Out</Text>
+                </TouchableOpacity>
+              </View>
             </View>
           ) : (
             <Text style={styles.noSession}>No active session</Text>
@@ -384,13 +386,44 @@ export default function TimeZoneScreen() {
         </View>
 
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Recent Sessions</Text>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Recent Sessions</Text>
+            {sessions.length > 0 && (
+              <TouchableOpacity 
+                style={styles.clearButton}
+                onPress={async () => {
+                  Alert.alert(
+                    'Clear All Sessions',
+                    'Are you sure you want to clear all sessions?',
+                    [
+                      { text: 'Cancel', style: 'cancel' },
+                      { 
+                        text: 'Clear', 
+                        style: 'destructive',
+                        onPress: async () => {
+                          await AsyncStorage.setItem(STORAGE_KEY_SESSIONS, JSON.stringify([]));
+                          setSessions([]);
+                          setCurrentSession(null);
+                        }
+                      },
+                    ]
+                  );
+                }}
+              >
+                <Text style={styles.clearButtonText}>Clear All</Text>
+              </TouchableOpacity>
+            )}
+          </View>
           {sessions.length > 0 ? (
             sessions.map(session => (
               <View key={session.id} style={styles.sessionHistoryCard}>
                 <Text style={styles.historySite}>{session.siteName}</Text>
-                <Text style={styles.historyTime}>In: {session.checkInTime}</Text>
-                <Text style={styles.historyTime}>Out: {session.checkOutTime || 'In progress'}</Text>
+                <Text style={styles.historyTime}>
+                  In: {new Date(session.checkInTime).toLocaleString()}
+                </Text>
+                <Text style={styles.historyTime}>
+                  Out: {session.checkOutTime ? new Date(session.checkOutTime).toLocaleString() : 'In progress'}
+                </Text>
               </View>
             ))
           ) : (
@@ -527,15 +560,27 @@ const styles = StyleSheet.create({
     color: '#555',
     marginBottom: 10,
   },
+  buttonRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 10,
+  },
   checkOutButton: {
-    backgroundColor: '#FF9800',
+    flex: 1,
     paddingVertical: 10,
     borderRadius: 8,
     alignItems: 'center',
+    marginHorizontal: 5,
+  },
+  manualButton: {
+    backgroundColor: '#FF9800',
+  },
+  autoButton: {
+    backgroundColor: '#4CAF50',
   },
   checkOutButtonText: {
     color: 'white',
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '600',
   },
   noSession: {
