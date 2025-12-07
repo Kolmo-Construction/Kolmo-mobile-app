@@ -488,13 +488,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     backgroundColor: 'white',
   },
-  uploadButton: {
-    backgroundColor: '#4CAF50',
-    paddingVertical: 16,
-    borderRadius: 10,
-    alignItems: 'center',
-    marginTop: 10,
-  },
   uploadSection: {
     marginTop: 20,
     alignItems: 'center',
