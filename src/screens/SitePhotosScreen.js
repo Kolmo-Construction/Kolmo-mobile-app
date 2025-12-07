@@ -29,11 +29,6 @@ export default function SitePhotosScreen({ navigation }) {
     setQueueStats(stats);
   }, []);
 
-  const loadQueueStats = useCallback(async () => {
-    const stats = await getQueueStats();
-    setQueueStats(stats);
-  }, []);
-
   useEffect(() => {
     (async () => {
       // Request location permission
