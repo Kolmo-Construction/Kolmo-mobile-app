@@ -296,3 +296,7 @@ Please read our contributing guidelines before submitting pull requests.
 
 ## License
 This project is licensed under the MIT License.
+
+---
+
+*Last updated: 2025-12-07*
