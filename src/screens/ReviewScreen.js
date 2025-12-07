@@ -25,9 +25,6 @@ export default function ReviewScreen({ route, navigation }) {
   const processReceipt = async () => {
     setIsLoading(true);
     try {
-      // Import the service functions
-      const { processReceiptImage, normalizeReceiptData } = require('../../services/taggunService');
-      
       // Process the image through Taggun (mock for now)
       const taggunResponse = await processReceiptImage(imageUri);
       
