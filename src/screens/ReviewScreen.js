@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, SafeAreaView, TextInput, ScrollView, Image, Alert, ActivityIndicator } from 'react-native';
 import axios from 'axios';
 import { processReceiptImage, normalizeReceiptData } from '../services/taggunService';
@@ -16,13 +16,7 @@ export default function ReviewScreen({ route, navigation }) {
     time: '',
   });
 
-  useEffect(() => {
-    if (imageUri) {
-      processReceipt();
-    }
-  }, [imageUri]);
-
-  const processReceipt = async () => {
+  const processReceipt = useCallback(async () => {
     setIsLoading(true);
     try {
       // Process the image through Taggun (mock for now)
@@ -50,7 +44,13 @@ export default function ReviewScreen({ route, navigation }) {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [imageUri]);
+
+  useEffect(() => {
+    if (imageUri) {
+      processReceipt();
+    }
+  }, [imageUri, processReceipt]);
 
   const handleSave = () => {
     // Here you would save the receipt data to local storage or send to your backend
@@ -68,7 +68,7 @@ export default function ReviewScreen({ route, navigation }) {
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView contentContainerStyle={styles.scrollContent}>
-        <Text style={styles.title}>Review & Edit Receipt</Text>
+        <Text style={styles.title}>Review & Edit</Text>
         
         {imageUri && (
           <View style={styles.imageContainer}>
