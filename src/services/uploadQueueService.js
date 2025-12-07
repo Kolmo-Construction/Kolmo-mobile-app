@@ -170,7 +170,7 @@ export const clearCompletedItems = async () => {
   try {
     const queue = await getUploadQueue();
     const pendingItems = queue.filter(item => item.status !== 'completed');
-    await AsyncStorage.setItem(UPLOUD_QUEUE_KEY, JSON.stringify(pendingItems));
+    await AsyncStorage.setItem(UPLOAD_QUEUE_KEY, JSON.stringify(pendingItems));
     return pendingItems.length;
   } catch (error) {
     console.error('Error clearing completed items:', error);
