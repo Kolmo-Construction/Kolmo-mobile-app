@@ -40,11 +40,20 @@ export default function TimeZoneScreen() {
   const [location, setLocation] = useState(null);
   const [errorMsg, setErrorMsg] = useState(null);
   const [showAddSiteModal, setShowAddSiteModal] = useState(false);
+  const [showSettingsModal, setShowSettingsModal] = useState(false);
+  const [showEditSessionModal, setShowEditSessionModal] = useState(false);
+  const [editingSession, setEditingSession] = useState(null);
   const [newSite, setNewSite] = useState({
     name: '',
     latitude: '',
     longitude: '',
     radius: '100',
+  });
+  const [settings, setSettings] = useState({
+    minDuration: 5, // minutes
+    workdayStart: '09:00',
+    workdayEnd: '17:00',
+    autoSync: false,
   });
   
   const subscriptionRef = useRef(null);
@@ -52,6 +61,7 @@ export default function TimeZoneScreen() {
   useEffect(() => {
     loadSavedData();
     checkLocationPermission();
+    loadSettings();
     
     // Cleanup on unmount
     return () => {
@@ -60,6 +70,17 @@ export default function TimeZoneScreen() {
       }
     };
   }, []);
+
+  const loadSettings = async () => {
+    try {
+      const savedSettings = await AsyncStorage.getItem('timezone_settings');
+      if (savedSettings) {
+        setSettings(JSON.parse(savedSettings));
+      }
+    } catch (error) {
+      console.error('Error loading settings:', error);
+    }
+  };
 
   const loadSavedData = async () => {
     try {
@@ -182,11 +203,11 @@ export default function TimeZoneScreen() {
     
     // User is not within any job site
     if (currentSession) {
-      // Check if user has been outside for more than buffer time (e.g., 5 minutes)
+      // Check if user has been outside for more than the minimum duration
       const checkInTime = new Date(currentSession.checkInTime);
       const timeOutside = (new Date() - checkInTime) / (1000 * 60); // minutes
-      
-      if (timeOutside > 5) { // 5 minute buffer
+        
+      if (timeOutside > settings.minDuration) {
         await checkOutFromSite(currentTime);
       }
     }
@@ -298,6 +319,21 @@ export default function TimeZoneScreen() {
     checkOutFromSite(new Date().toISOString());
   };
 
+  const syncWithBackend = async () => {
+    try {
+      // In a real implementation, this would send sessions to your backend
+      Alert.alert(
+        'Sync',
+        'This would sync with your backend in a real implementation. Sessions remain local for now.',
+        [{ text: 'OK' }]
+      );
+      console.log('Would sync sessions:', sessions);
+    } catch (error) {
+      console.error('Sync error:', error);
+      Alert.alert('Sync Failed', 'Failed to sync with backend.');
+    }
+  };
+
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView contentContainerStyle={styles.scrollContent}>
@@ -315,11 +351,19 @@ export default function TimeZoneScreen() {
               value={isEnabled}
             />
           </View>
-          <Text style={styles.switchHelp}>
-            {isEnabled 
-              ? 'Tracking active. You will be automatically checked in when entering a job site.' 
-              : 'Turn on to start automatic check-in/check-out.'}
-          </Text>
+          <View style={styles.settingsRow}>
+            <Text style={styles.switchHelp}>
+              {isEnabled 
+                ? 'Tracking active. You will be automatically checked in when entering a job site.' 
+                : 'Turn on to start automatic check-in/check-out.'}
+            </Text>
+            <TouchableOpacity 
+              style={styles.settingsButton}
+              onPress={() => setShowSettingsModal(true)}
+            >
+              <Text style={styles.settingsButtonText}>Settings</Text>
+            </TouchableOpacity>
+          </View>
         </View>
 
         <View style={styles.section}>
@@ -388,42 +432,73 @@ export default function TimeZoneScreen() {
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Recent Sessions</Text>
-            {sessions.length > 0 && (
+            <View style={styles.sessionActions}>
               <TouchableOpacity 
-                style={styles.clearButton}
-                onPress={async () => {
-                  Alert.alert(
-                    'Clear All Sessions',
-                    'Are you sure you want to clear all sessions?',
-                    [
-                      { text: 'Cancel', style: 'cancel' },
-                      { 
-                        text: 'Clear', 
-                        style: 'destructive',
-                        onPress: async () => {
-                          await AsyncStorage.setItem(STORAGE_KEY_SESSIONS, JSON.stringify([]));
-                          setSessions([]);
-                          setCurrentSession(null);
-                        }
-                      },
-                    ]
-                  );
-                }}
+                style={[styles.syncButton, styles.smallButton]}
+                onPress={syncWithBackend}
               >
-                <Text style={styles.clearButtonText}>Clear All</Text>
+                <Text style={styles.syncButtonText}>Sync</Text>
               </TouchableOpacity>
-            )}
+              {sessions.length > 0 && (
+                <TouchableOpacity 
+                  style={[styles.clearButton, styles.smallButton]}
+                  onPress={async () => {
+                    Alert.alert(
+                      'Clear All Sessions',
+                      'Are you sure you want to clear all sessions?',
+                      [
+                        { text: 'Cancel', style: 'cancel' },
+                        { 
+                          text: 'Clear', 
+                          style: 'destructive',
+                          onPress: async () => {
+                            await AsyncStorage.setItem(STORAGE_KEY_SESSIONS, JSON.stringify([]));
+                            setSessions([]);
+                            setCurrentSession(null);
+                          }
+                        },
+                      ]
+                    );
+                  }}
+                >
+                  <Text style={styles.clearButtonText}>Clear All</Text>
+                </TouchableOpacity>
+              )}
+            </View>
           </View>
           {sessions.length > 0 ? (
             sessions.map(session => (
               <View key={session.id} style={styles.sessionHistoryCard}>
-                <Text style={styles.historySite}>{session.siteName}</Text>
+                <View style={styles.sessionHeader}>
+                  <Text style={styles.historySite}>{session.siteName}</Text>
+                  <TouchableOpacity 
+                    style={styles.editButton}
+                    onPress={() => {
+                      setEditingSession(session);
+                      setShowEditSessionModal(true);
+                    }}
+                  >
+                    <Text style={styles.editButtonText}>Edit</Text>
+                  </TouchableOpacity>
+                </View>
                 <Text style={styles.historyTime}>
                   In: {new Date(session.checkInTime).toLocaleString()}
                 </Text>
                 <Text style={styles.historyTime}>
                   Out: {session.checkOutTime ? new Date(session.checkOutTime).toLocaleString() : 'In progress'}
                 </Text>
+                <View style={styles.sessionTags}>
+                  {session.isBreak && (
+                    <View style={[styles.tag, styles.breakTag]}>
+                      <Text style={styles.tagText}>Break</Text>
+                    </View>
+                  )}
+                  {session.billable === false && (
+                    <View style={[styles.tag, styles.nonBillableTag]}>
+                      <Text style={styles.tagText}>Non-billable</Text>
+                    </View>
+                  )}
+                </View>
               </View>
             ))
           ) : (
@@ -489,6 +564,155 @@ export default function TimeZoneScreen() {
                 <Text style={styles.saveButtonText}>Save Site</Text>
               </TouchableOpacity>
             </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Settings Modal */}
+      <Modal
+        visible={showSettingsModal}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setShowSettingsModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>TimeZone Settings</Text>
+            
+            <View style={styles.settingRow}>
+              <Text style={styles.settingLabel}>Minimum Duration (minutes)</Text>
+              <TextInput
+                style={styles.modalInput}
+                value={settings.minDuration.toString()}
+                onChangeText={(text) => setSettings({...settings, minDuration: parseInt(text) || 5})}
+                keyboardType="numeric"
+                placeholder="5"
+              />
+            </View>
+            
+            <View style={styles.settingRow}>
+              <Text style={styles.settingLabel}>Workday Start (HH:MM)</Text>
+              <TextInput
+                style={styles.modalInput}
+                value={settings.workdayStart}
+                onChangeText={(text) => setSettings({...settings, workdayStart: text})}
+                placeholder="09:00"
+              />
+            </View>
+            
+            <View style={styles.settingRow}>
+              <Text style={styles.settingLabel}>Workday End (HH:MM)</Text>
+              <TextInput
+                style={styles.modalInput}
+                value={settings.workdayEnd}
+                onChangeText={(text) => setSettings({...settings, workdayEnd: text})}
+                placeholder="17:00"
+              />
+            </View>
+            
+            <View style={styles.settingRow}>
+              <Text style={styles.settingLabel}>Auto Sync with Backend</Text>
+              <Switch
+                value={settings.autoSync}
+                onValueChange={(value) => setSettings({...settings, autoSync: value})}
+              />
+            </View>
+            
+            <View style={styles.modalButtons}>
+              <TouchableOpacity 
+                style={[styles.modalButton, styles.cancelButton]}
+                onPress={() => setShowSettingsModal(false)}
+              >
+                <Text style={styles.cancelButtonText}>Cancel</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity 
+                style={[styles.modalButton, styles.saveButton]}
+                onPress={async () => {
+                  await AsyncStorage.setItem('timezone_settings', JSON.stringify(settings));
+                  setShowSettingsModal(false);
+                  Alert.alert('Settings Saved', 'Your settings have been updated.');
+                }}
+              >
+                <Text style={styles.saveButtonText}>Save Settings</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Edit Session Modal */}
+      <Modal
+        visible={showEditSessionModal}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setShowEditSessionModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Edit Session</Text>
+            
+            {editingSession && (
+              <>
+                <View style={styles.settingRow}>
+                  <Text style={styles.settingLabel}>Start Time</Text>
+                  <TextInput
+                    style={styles.modalInput}
+                    value={new Date(editingSession.checkInTime).toLocaleString()}
+                    editable={false}
+                  />
+                </View>
+                
+                <View style={styles.settingRow}>
+                  <Text style={styles.settingLabel}>End Time</Text>
+                  <TextInput
+                    style={styles.modalInput}
+                    value={editingSession.checkOutTime ? new Date(editingSession.checkOutTime).toLocaleString() : 'In Progress'}
+                    editable={false}
+                  />
+                </View>
+                
+                <View style={styles.settingRow}>
+                  <Text style={styles.settingLabel}>Mark as Break</Text>
+                  <Switch
+                    value={editingSession.isBreak || false}
+                    onValueChange={(value) => setEditingSession({...editingSession, isBreak: value})}
+                  />
+                </View>
+                
+                <View style={styles.settingRow}>
+                  <Text style={styles.settingLabel}>Billable</Text>
+                  <Switch
+                    value={editingSession.billable !== false}
+                    onValueChange={(value) => setEditingSession({...editingSession, billable: value})}
+                  />
+                </View>
+                
+                <View style={styles.modalButtons}>
+                  <TouchableOpacity 
+                    style={[styles.modalButton, styles.cancelButton]}
+                    onPress={() => setShowEditSessionModal(false)}
+                  >
+                    <Text style={styles.cancelButtonText}>Cancel</Text>
+                  </TouchableOpacity>
+                  
+                  <TouchableOpacity 
+                    style={[styles.modalButton, styles.saveButton]}
+                    onPress={async () => {
+                      const updatedSessions = sessions.map(s => 
+                        s.id === editingSession.id ? editingSession : s
+                      );
+                      setSessions(updatedSessions);
+                      await AsyncStorage.setItem(STORAGE_KEY_SESSIONS, JSON.stringify(updatedSessions));
+                      setShowEditSessionModal(false);
+                      Alert.alert('Session Updated', 'Session has been updated successfully.');
+                    }}
+                  >
+                    <Text style={styles.saveButtonText}>Save Changes</Text>
+                  </TouchableOpacity>
+                </View>
+              </>
+            )}
           </View>
         </View>
       </Modal>

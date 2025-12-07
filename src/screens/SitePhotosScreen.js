@@ -770,11 +770,90 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 10,
   },
-  clearButton: {
-    backgroundColor: '#f44336',
+  settingsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 10,
+  },
+  settingsButton: {
+    backgroundColor: '#2196F3',
     paddingVertical: 6,
     paddingHorizontal: 12,
     borderRadius: 4,
+  },
+  settingsButtonText: {
+    color: 'white',
+    fontSize: 12,
+    fontWeight: '500',
+  },
+  settingRow: {
+    marginBottom: 15,
+  },
+  settingLabel: {
+    fontSize: 16,
+    fontWeight: '500',
+    marginBottom: 5,
+    color: '#555',
+  },
+  sessionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 5,
+  },
+  editButton: {
+    backgroundColor: '#FF9800',
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    borderRadius: 4,
+  },
+  editButtonText: {
+    color: 'white',
+    fontSize: 12,
+  },
+  sessionTags: {
+    flexDirection: 'row',
+    marginTop: 5,
+  },
+  tag: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 4,
+    marginRight: 5,
+  },
+  breakTag: {
+    backgroundColor: '#FFEB3B',
+  },
+  nonBillableTag: {
+    backgroundColor: '#9E9E9E',
+  },
+  tagText: {
+    fontSize: 10,
+    fontWeight: '500',
+  },
+  sessionActions: {
+    flexDirection: 'row',
+  },
+  syncButton: {
+    backgroundColor: '#4CAF50',
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 4,
+    marginRight: 10,
+  },
+  syncButtonText: {
+    color: 'white',
+    fontSize: 12,
+    fontWeight: '500',
+  },
+  smallButton: {
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 4,
+  },
+  clearButton: {
+    backgroundColor: '#f44336',
   },
   clearButtonText: {
     color: 'white',
