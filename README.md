@@ -236,20 +236,58 @@ The app sends the following with each receipt:
 - **Metadata**: Including project ID for categorization
 - **User context**: (If authenticated)
 
+### Google Drive Integration Setup
+
+The app can upload site photos, voice notes, and metadata directly to Google Drive. To enable this feature:
+
+1. **Create a Google Cloud Project**:
+   - Go to [Google Cloud Console](https://console.cloud.google.com)
+   - Create a new project or select an existing one
+   - Enable the "Google Drive API"
+
+2. **Configure OAuth 2.0 Credentials**:
+   - Navigate to "APIs & Services" > "Credentials"
+   - Click "Create Credentials" > "OAuth 2.0 Client ID"
+   - Choose "iOS" or "Android" application type
+   - For iOS: Add your bundle identifier
+   - For Android: Add your package name and SHA-1 fingerprint
+   - Also create "Web application" credentials for development
+
+3. **Set Up Redirect URIs**:
+   - For development with Expo Go, add:
+     - `https://auth.expo.io/@your-username/your-app-slug`
+   - For standalone apps, add your custom scheme:
+     - `com.yourcompany.kolmo:/oauth2redirect`
+
+4. **Configure Environment Variables**:
+   Add to your `.env` file:
+   ```
+   EXPO_PUBLIC_GOOGLE_CLIENT_ID=your_google_client_id_here
+   EXPO_PUBLIC_GOOGLE_CLIENT_SECRET=your_google_client_secret_here
+   EXPO_PUBLIC_BACKEND_API_URL=https://your-backend.com/api
+   ```
+
+5. **Google Drive Folder**:
+   - The app uploads files to a specific folder (ID: `1ofiEOheVXs0qOlWcRY6c7T0sdW17xxzw`)
+   - Ensure the authenticated user has write access to this folder
+
 ### Development Setup
 
 1. **Configure your backend URL**:
    Create a `.env` file:
    ```
    EXPO_PUBLIC_BACKEND_API_URL=https://your-backend.com/api
+   EXPO_PUBLIC_GOOGLE_CLIENT_ID=your_client_id
+   EXPO_PUBLIC_GOOGLE_CLIENT_SECRET=your_client_secret
    ```
 
-2. **Run without a backend**:
-   If no backend URL is configured, the app will use mock data for development.
+2. **Run without Google Drive**:
+   If no Google Client ID is configured, the app will use mock upload functionality for development.
 
 ### Security Considerations
 - Your backend should handle Taggun API key security
-- Implement authentication for your endpoints
+- Google OAuth tokens are stored locally on the device
+- Implement proper token refresh mechanisms for production
 - Validate and sanitize all incoming data
 - Implement rate limiting
 

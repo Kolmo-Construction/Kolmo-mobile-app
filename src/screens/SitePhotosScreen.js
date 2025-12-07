@@ -5,6 +5,7 @@ import { Audio } from 'expo-av';
 import * as FileSystem from 'expo-file-system';
 import * as Location from 'expo-location';
 import * as MediaLibrary from 'expo-media-library';
+import { authenticateWithGoogle, uploadToGoogleDrive, createProjectFolder, validateToken } from '../services/googleDriveService';
 
 export default function SitePhotosScreen({ navigation }) {
   const [image, setImage] = useState(null);
@@ -15,6 +16,8 @@ export default function SitePhotosScreen({ navigation }) {
   const [projectId, setProjectId] = useState('default-project');
   const [location, setLocation] = useState(null);
   const [isUploading, setIsUploading] = useState(false);
+  const [isAuthenticating, setIsAuthenticating] = useState(false);
+  const [accessToken, setAccessToken] = useState(null);
   const [locationPermission, setLocationPermission] = useState(null);
 
   useEffect(() => {
@@ -139,9 +142,35 @@ export default function SitePhotosScreen({ navigation }) {
     }
   };
 
+  const handleGoogleAuth = async () => {
+    setIsAuthenticating(true);
+    try {
+      const authResult = await authenticateWithGoogle();
+      setAccessToken(authResult.accessToken);
+      Alert.alert('Authentication Successful', 'You can now upload files to Google Drive.');
+    } catch (error) {
+      Alert.alert('Authentication Failed', error.message || 'Failed to authenticate with Google.');
+    } finally {
+      setIsAuthenticating(false);
+    }
+  };
+
   const handleUpload = async () => {
     if (!image) {
       Alert.alert('No image', 'Please select or take a photo first.');
+      return;
+    }
+    
+    // Check if authenticated with Google
+    if (!accessToken) {
+      Alert.alert(
+        'Authentication Required',
+        'You need to sign in with Google to upload files to Google Drive.',
+        [
+          { text: 'Sign In', onPress: handleGoogleAuth },
+          { text: 'Cancel', style: 'cancel' },
+        ]
+      );
       return;
     }
     
@@ -158,80 +187,90 @@ export default function SitePhotosScreen({ navigation }) {
         exif: image.exif || {},
         deviceInfo: {
           platform: Platform.OS,
-          // Add more device info as needed
         }
       };
       
-      // Prepare FormData for backend
-      const formData = new FormData();
-      
-      // Append image
-      const filename = image.uri.split('/').pop();
-      const match = /\.(\w+)$/.exec(filename);
-      const type = match ? `image/${match[1]}` : 'image/jpeg';
-      
-      formData.append('siteImage', {
+      // Upload image to Google Drive
+      const imageFilename = `site_photo_${Date.now()}_${projectId}.jpg`;
+      const imageFile = {
         uri: image.uri,
-        type: type,
-        name: filename || 'site_photo.jpg',
-      });
+        name: imageFilename,
+        type: 'image/jpeg',
+      };
       
-      // Append voice note if recorded
+      const imageUploadResult = await uploadToGoogleDrive(
+        accessToken,
+        imageFile,
+        { ...metadata, fileType: 'image' },
+        projectId
+      );
+      
+      // Upload voice note if exists
+      let voiceUploadResult = null;
       if (sound) {
         const audioUri = sound._uri || sound.uri;
-        const audioFilename = audioUri.split('/').pop();
-        const audioMatch = /\.(\w+)$/.exec(audioFilename);
-        const audioType = audioMatch ? `audio/${audioMatch[1]}` : 'audio/m4a';
-        
-        formData.append('voiceNote', {
+        const audioFilename = `voice_note_${Date.now()}_${projectId}.m4a`;
+        const audioFile = {
           uri: audioUri,
-          type: audioType,
-          name: audioFilename || 'voice_note.m4a',
-        });
+          name: audioFilename,
+          type: 'audio/m4a',
+        };
+        
+        voiceUploadResult = await uploadToGoogleDrive(
+          accessToken,
+          audioFile,
+          { ...metadata, fileType: 'audio' },
+          projectId
+        );
       }
       
-      // Append metadata as JSON
-      formData.append('metadata', JSON.stringify(metadata));
+      // Upload metadata as a JSON file
+      const metadataFilename = `metadata_${Date.now()}_${projectId}.json`;
+      const metadataBlob = new Blob([JSON.stringify(metadata, null, 2)], { type: 'application/json' });
       
-      // Get backend URL from environment
-      const backendUrl = process.env.EXPO_PUBLIC_BACKEND_API_URL || 'https://your-backend.com/api';
+      // Create a temporary file for metadata
+      const metadataUri = FileSystem.cacheDirectory + metadataFilename;
+      await FileSystem.writeAsStringAsync(metadataUri, JSON.stringify(metadata, null, 2));
       
-      // Make actual API call
-      const response = await fetch(`${backendUrl}/site-photos/upload`, {
-        method: 'POST',
-        body: formData,
-        headers: {
-          'Content-Type': 'multipart/form-data',
-          // Add authentication header if needed
-          // 'Authorization': `Bearer ${userToken}`,
-        },
-      });
+      const metadataFile = {
+        uri: metadataUri,
+        name: metadataFilename,
+        type: 'application/json',
+      };
       
-      if (!response.ok) {
-        throw new Error(`Upload failed: ${response.status}`);
-      }
-      
-      const result = await response.json();
+      const metadataUploadResult = await uploadToGoogleDrive(
+        accessToken,
+        metadataFile,
+        { ...metadata, fileType: 'metadata' },
+        projectId
+      );
       
       Alert.alert(
         'Upload Successful',
-        `Site photo has been uploaded successfully. ID: ${result.photoId || 'N/A'}`,
-        [{ text: 'OK', onPress: () => {
-          // Reset form
-          setImage(null);
-          setDescription('');
-          setTags('');
-          setSound(null);
-        }}]
+        `Files uploaded to Google Drive:\n` +
+        `• Image: ${imageUploadResult.name}\n` +
+        `${voiceUploadResult ? `• Voice Note: ${voiceUploadResult.name}\n` : ''}` +
+        `• Metadata: ${metadataUploadResult.name}`,
+        [{ 
+          text: 'OK', 
+          onPress: () => {
+            // Reset form
+            setImage(null);
+            setDescription('');
+            setTags('');
+            setSound(null);
+          }
+        }]
       );
       
     } catch (error) {
       console.error('Upload error:', error);
       Alert.alert(
         'Upload Failed',
-        error.message || 'Failed to upload site photo. Please try again.',
+        error.message || 'Failed to upload files to Google Drive. Please try again.',
         [
           { text: 'Try Again', onPress: () => handleUpload() },
+          { text: 'Re-authenticate', onPress: handleGoogleAuth },
           { text: 'Cancel', style: 'cancel' },
         ]
       );
@@ -326,6 +365,32 @@ export default function SitePhotosScreen({ navigation }) {
           />
         </View>
 
+        <View style={styles.authSection}>
+          {accessToken ? (
+            <View style={styles.authStatus}>
+              <Text style={styles.authStatusText}>✓ Connected to Google Drive</Text>
+              <TouchableOpacity 
+                style={styles.signOutButton}
+                onPress={() => setAccessToken(null)}
+              >
+                <Text style={styles.signOutButtonText}>Sign Out</Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <TouchableOpacity 
+              style={styles.authButton}
+              onPress={handleGoogleAuth}
+              disabled={isAuthenticating}
+            >
+              {isAuthenticating ? (
+                <ActivityIndicator color="white" />
+              ) : (
+                <Text style={styles.authButtonText}>Sign in with Google</Text>
+              )}
+            </TouchableOpacity>
+          )}
+        </View>
+
         <View style={styles.uploadSection}>
           <TouchableOpacity 
             style={[styles.uploadButton, (isUploading || !image) && styles.uploadButtonDisabled]} 
@@ -335,11 +400,14 @@ export default function SitePhotosScreen({ navigation }) {
             {isUploading ? (
               <ActivityIndicator color="white" />
             ) : (
-              <Text style={styles.uploadButtonText}>Upload to Backend</Text>
+              <Text style={styles.uploadButtonText}>Upload to Google Drive</Text>
             )}
           </TouchableOpacity>
           {!image && (
             <Text style={styles.uploadHelpText}>Select or take a photo first</Text>
+          )}
+          {!accessToken && image && (
+            <Text style={styles.uploadHelpText}>Sign in with Google to upload</Text>
           )}
         </View>
       </ScrollView>
@@ -446,6 +514,47 @@ const styles = StyleSheet.create({
     color: 'white',
     fontSize: 18,
     fontWeight: 'bold',
+  },
+  authSection: {
+    marginBottom: 20,
+  },
+  authButton: {
+    backgroundColor: '#4285F4',
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  authButtonText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  authStatus: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: '#E8F5E9',
+    padding: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#C8E6C9',
+  },
+  authStatusText: {
+    color: '#2E7D32',
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  signOutButton: {
+    backgroundColor: '#f44336',
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 4,
+  },
+  signOutButtonText: {
+    color: 'white',
+    fontSize: 12,
+    fontWeight: '500',
   },
   uploadHelpText: {
     marginTop: 10,
