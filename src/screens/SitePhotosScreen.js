@@ -29,26 +29,6 @@ export default function SitePhotosScreen({ navigation }) {
     setQueueStats(stats);
   }, []);
 
-  useEffect(() => {
-    (async () => {
-      // Request location permission
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      setLocationPermission(status === 'granted');
-      
-      if (status === 'granted') {
-        const currentLocation = await Location.getCurrentPositionAsync({});
-        setLocation({
-          latitude: currentLocation.coords.latitude,
-          longitude: currentLocation.coords.longitude,
-          accuracy: currentLocation.coords.accuracy,
-        });
-      }
-      
-      // Load queue stats
-      await loadQueueStats();
-    })();
-  }, [loadQueueStats]);
-  
   const processQueue = useCallback(async () => {
     if (!accessToken) {
       Alert.alert('Authentication Required', 'Please sign in with Google first.');
@@ -88,6 +68,26 @@ export default function SitePhotosScreen({ navigation }) {
       setIsProcessingQueue(false);
     }
   }, [accessToken, loadQueueStats]);
+
+  useEffect(() => {
+    (async () => {
+      // Request location permission
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      setLocationPermission(status === 'granted');
+      
+      if (status === 'granted') {
+        const currentLocation = await Location.getCurrentPositionAsync({});
+        setLocation({
+          latitude: currentLocation.coords.latitude,
+          longitude: currentLocation.coords.longitude,
+          accuracy: currentLocation.coords.accuracy,
+        });
+      }
+      
+      // Load queue stats
+      await loadQueueStats();
+    })();
+  }, [loadQueueStats]);
 
   useEffect(() => {
     // Check network status and process queue when coming online
