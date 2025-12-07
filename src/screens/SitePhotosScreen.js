@@ -29,6 +29,11 @@ export default function SitePhotosScreen({ navigation }) {
     setQueueStats(stats);
   }, []);
 
+  const loadQueueStats = useCallback(async () => {
+    const stats = await getQueueStats();
+    setQueueStats(stats);
+  }, []);
+
   useEffect(() => {
     (async () => {
       // Request location permission
@@ -99,7 +104,7 @@ export default function SitePhotosScreen({ navigation }) {
     };
     
     checkNetworkAndProcess();
-  }, [accessToken, queueStats.pending]);
+  }, [accessToken, queueStats.pending, processQueue]);
 
   const pickImages = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
