@@ -201,6 +201,28 @@ Your backend must implement the following endpoints:
      }
      ```
 
+2. **POST /api/site-photos/upload**
+   - Accepts multipart/form-data with:
+     - `siteImage`: The image file
+     - `voiceNote`: (Optional) Audio file
+     - `metadata`: JSON string containing:
+       - `projectId`: Identifier for the project
+       - `description`: (Optional) Text description
+       - `tags`: Array of tags
+       - `location`: GPS coordinates (latitude, longitude, accuracy)
+       - `exif`: EXIF metadata from the image
+       - `timestamp`: When the photo was captured
+       - `deviceInfo`: Platform information
+   - Stores the image, audio, and metadata in your database
+   - Returns a JSON response with:
+     ```json
+     {
+       "success": true,
+       "photoId": "unique-id",
+       "message": "Upload successful"
+     }
+     ```
+
 2. **Other endpoints** for:
    - Site photos and voice notes upload
    - TimeZone session management

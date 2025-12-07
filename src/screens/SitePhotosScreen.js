@@ -1,8 +1,10 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, SafeAreaView, Image, TextInput, ScrollView, Alert } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, SafeAreaView, Image, TextInput, ScrollView, Alert, ActivityIndicator, Platform } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { Audio } from 'expo-av';
 import * as FileSystem from 'expo-file-system';
+import * as Location from 'expo-location';
+import * as MediaLibrary from 'expo-media-library';
 
 export default function SitePhotosScreen({ navigation }) {
   const [image, setImage] = useState(null);
@@ -10,7 +12,27 @@ export default function SitePhotosScreen({ navigation }) {
   const [sound, setSound] = useState(null);
   const [description, setDescription] = useState('');
   const [tags, setTags] = useState('');
+  const [projectId, setProjectId] = useState('default-project');
+  const [location, setLocation] = useState(null);
   const [isUploading, setIsUploading] = useState(false);
+  const [locationPermission, setLocationPermission] = useState(null);
+
+  useEffect(() => {
+    (async () => {
+      // Request location permission
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      setLocationPermission(status === 'granted');
+      
+      if (status === 'granted') {
+        const currentLocation = await Location.getCurrentPositionAsync({});
+        setLocation({
+          latitude: currentLocation.coords.latitude,
+          longitude: currentLocation.coords.longitude,
+          accuracy: currentLocation.coords.accuracy,
+        });
+      }
+    })();
+  }, []);
 
   const pickImage = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -28,7 +50,19 @@ export default function SitePhotosScreen({ navigation }) {
     });
 
     if (!result.canceled) {
-      setImage(result.assets[0]);
+      const asset = result.assets[0];
+      // Try to get more EXIF data using MediaLibrary
+      try {
+        const assetInfo = await MediaLibrary.getAssetInfoAsync(asset.assetId || asset.id);
+        setImage({
+          ...asset,
+          exif: assetInfo.exif || {},
+          location: assetInfo.location,
+        });
+      } catch (error) {
+        console.log('Could not get detailed EXIF:', error);
+        setImage(asset);
+      }
     }
   };
 
@@ -47,7 +81,23 @@ export default function SitePhotosScreen({ navigation }) {
     });
 
     if (!result.canceled) {
-      setImage(result.assets[0]);
+      const asset = result.assets[0];
+      // Get current location if available
+      let currentLocation = location;
+      if (!currentLocation && locationPermission) {
+        const loc = await Location.getCurrentPositionAsync({});
+        currentLocation = {
+          latitude: loc.coords.latitude,
+          longitude: loc.coords.longitude,
+          accuracy: loc.coords.accuracy,
+        };
+      }
+      
+      setImage({
+        ...asset,
+        exif: asset.exif || {},
+        location: currentLocation,
+      });
     }
   };
 
@@ -77,9 +127,16 @@ export default function SitePhotosScreen({ navigation }) {
       allowsRecordingIOS: false,
     });
     const uri = recording.getURI();
-    setRecording(null);
-    // For demo, we'll just show an alert
-    Alert.alert('Voice note recorded', `Saved at: ${uri}`);
+    const soundObject = new Audio.Sound();
+    try {
+      await soundObject.loadAsync({ uri });
+      setSound(soundObject);
+      setRecording(null);
+      Alert.alert('Voice note recorded', 'Voice note is ready to be uploaded.');
+    } catch (error) {
+      console.error('Failed to load recording:', error);
+      Alert.alert('Error', 'Failed to save voice note.');
+    }
   };
 
   const handleUpload = async () => {
@@ -87,15 +144,100 @@ export default function SitePhotosScreen({ navigation }) {
       Alert.alert('No image', 'Please select or take a photo first.');
       return;
     }
+    
     setIsUploading(true);
-    // Simulate upload process
-    setTimeout(() => {
+    
+    try {
+      // Prepare metadata
+      const metadata = {
+        projectId,
+        description,
+        tags: tags.split(',').map(tag => tag.trim()).filter(tag => tag),
+        timestamp: new Date().toISOString(),
+        location: image.location || location,
+        exif: image.exif || {},
+        deviceInfo: {
+          platform: Platform.OS,
+          // Add more device info as needed
+        }
+      };
+      
+      // Prepare FormData for backend
+      const formData = new FormData();
+      
+      // Append image
+      const filename = image.uri.split('/').pop();
+      const match = /\.(\w+)$/.exec(filename);
+      const type = match ? `image/${match[1]}` : 'image/jpeg';
+      
+      formData.append('siteImage', {
+        uri: image.uri,
+        type: type,
+        name: filename || 'site_photo.jpg',
+      });
+      
+      // Append voice note if recorded
+      if (sound) {
+        const audioUri = sound._uri || sound.uri;
+        const audioFilename = audioUri.split('/').pop();
+        const audioMatch = /\.(\w+)$/.exec(audioFilename);
+        const audioType = audioMatch ? `audio/${audioMatch[1]}` : 'audio/m4a';
+        
+        formData.append('voiceNote', {
+          uri: audioUri,
+          type: audioType,
+          name: audioFilename || 'voice_note.m4a',
+        });
+      }
+      
+      // Append metadata as JSON
+      formData.append('metadata', JSON.stringify(metadata));
+      
+      // Get backend URL from environment
+      const backendUrl = process.env.EXPO_PUBLIC_BACKEND_API_URL || 'https://your-backend.com/api';
+      
+      // Make actual API call
+      const response = await fetch(`${backendUrl}/site-photos/upload`, {
+        method: 'POST',
+        body: formData,
+        headers: {
+          'Content-Type': 'multipart/form-data',
+          // Add authentication header if needed
+          // 'Authorization': `Bearer ${userToken}`,
+        },
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Upload failed: ${response.status}`);
+      }
+      
+      const result = await response.json();
+      
+      Alert.alert(
+        'Upload Successful',
+        `Site photo has been uploaded successfully. ID: ${result.photoId || 'N/A'}`,
+        [{ text: 'OK', onPress: () => {
+          // Reset form
+          setImage(null);
+          setDescription('');
+          setTags('');
+          setSound(null);
+        }}]
+      );
+      
+    } catch (error) {
+      console.error('Upload error:', error);
+      Alert.alert(
+        'Upload Failed',
+        error.message || 'Failed to upload site photo. Please try again.',
+        [
+          { text: 'Try Again', onPress: () => handleUpload() },
+          { text: 'Cancel', style: 'cancel' },
+        ]
+      );
+    } finally {
       setIsUploading(false);
-      Alert.alert('Upload successful', 'Site photo and metadata have been sent to the backend.');
-      setImage(null);
-      setDescription('');
-      setTags('');
-    }, 1500);
+    }
   };
 
   return (
@@ -136,6 +278,34 @@ export default function SitePhotosScreen({ navigation }) {
         </View>
 
         <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Project Information</Text>
+          
+          <View style={styles.field}>
+            <Text style={styles.fieldLabel}>Project ID</Text>
+            <TextInput
+              style={styles.input}
+              value={projectId}
+              onChangeText={setProjectId}
+              placeholder="Enter project ID"
+            />
+            <Text style={styles.helpText}>
+              This site photo will be associated with this project
+            </Text>
+          </View>
+          
+          {location && (
+            <View style={styles.locationInfo}>
+              <Text style={styles.locationText}>
+                Location: {location.latitude.toFixed(6)}, {location.longitude.toFixed(6)}
+              </Text>
+              <Text style={styles.helpText}>
+                GPS coordinates will be included with the upload
+              </Text>
+            </View>
+          )}
+        </View>
+
+        <View style={styles.section}>
           <Text style={styles.sectionTitle}>Description (Optional)</Text>
           <TextInput
             style={styles.input}
@@ -156,15 +326,22 @@ export default function SitePhotosScreen({ navigation }) {
           />
         </View>
 
-        <TouchableOpacity 
-          style={[styles.uploadButton, isUploading && styles.uploadButtonDisabled]} 
-          onPress={handleUpload}
-          disabled={isUploading}
-        >
-          <Text style={styles.uploadButtonText}>
-            {isUploading ? 'Uploading...' : 'Upload to Backend'}
-          </Text>
-        </TouchableOpacity>
+        <View style={styles.uploadSection}>
+          <TouchableOpacity 
+            style={[styles.uploadButton, (isUploading || !image) && styles.uploadButtonDisabled]} 
+            onPress={handleUpload}
+            disabled={isUploading || !image}
+          >
+            {isUploading ? (
+              <ActivityIndicator color="white" />
+            ) : (
+              <Text style={styles.uploadButtonText}>Upload to Backend</Text>
+            )}
+          </TouchableOpacity>
+          {!image && (
+            <Text style={styles.uploadHelpText}>Select or take a photo first</Text>
+          )}
+        </View>
       </ScrollView>
     </SafeAreaView>
   );
@@ -250,6 +427,18 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginTop: 10,
   },
+  uploadSection: {
+    marginTop: 20,
+    alignItems: 'center',
+  },
+  uploadButton: {
+    backgroundColor: '#4CAF50',
+    paddingVertical: 16,
+    paddingHorizontal: 30,
+    borderRadius: 10,
+    alignItems: 'center',
+    minWidth: 200,
+  },
   uploadButtonDisabled: {
     backgroundColor: '#a5d6a7',
   },
@@ -257,6 +446,40 @@ const styles = StyleSheet.create({
     color: 'white',
     fontSize: 18,
     fontWeight: 'bold',
+  },
+  uploadHelpText: {
+    marginTop: 10,
+    fontSize: 14,
+    color: '#666',
+    fontStyle: 'italic',
+  },
+  field: {
+    marginBottom: 15,
+  },
+  fieldLabel: {
+    fontSize: 16,
+    fontWeight: '500',
+    marginBottom: 5,
+    color: '#555',
+  },
+  helpText: {
+    fontSize: 12,
+    color: '#888',
+    marginTop: 5,
+    fontStyle: 'italic',
+  },
+  locationInfo: {
+    marginTop: 10,
+    padding: 10,
+    backgroundColor: '#f0f8ff',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#d1e7ff',
+  },
+  locationText: {
+    fontSize: 14,
+    color: '#1565C0',
+    fontWeight: '500',
   },
   recordingText: {
     marginTop: 10,
