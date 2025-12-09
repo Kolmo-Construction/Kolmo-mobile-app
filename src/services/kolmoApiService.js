@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const KOLMO_API_URL = process.env.EXPO_PUBLIC_KOLMO_API_URL || process.env.KOLMO_API_URL || 'https://api.kolmo.design/api';
+const KOLMO_API_URL = process.env.EXPO_PUBLIC_KOLMO_API_URL || process.env.KOLMO_API_URL || 'https://www.kolmo.design/api';
 const KOLMO_API_KEY = process.env.EXPO_PUBLIC_KOLMO_API_KEY || process.env.KOLMO_API_KEY || '';
 
 const kolmoApi = axios.create({
