@@ -169,8 +169,6 @@ export default function TimeZoneScreen() {
       Alert.alert('TimeZone Disabled', 'Automatic tracking has been stopped.');
     }
   };
-  
-  const subscriptionRef = useRef(null);
 
   const handleLocationUpdate = async (location) => {
     if (!location || !jobSites.length) return;

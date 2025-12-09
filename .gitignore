@@ -1,1 +1,9 @@
 .aider*
+node_modules/
+.expo/
+*.backup
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+package-lock.json
+.DS_Store

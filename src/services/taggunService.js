@@ -11,23 +11,23 @@ const BACKEND_API_URL = process.env.EXPO_PUBLIC_BACKEND_API_URL || 'https://your
  * @param {Object} options - Additional options for Taggun API
  * @returns {Promise<Object>} - Parsed receipt data from your backend
  */
-export const processReceiptImage = async (imageUri, metadata = {}, options = {}) => {
+const processReceiptImageReal = async (imageUri, metadata = {}, options = {}) => {
   try {
     // Create FormData to send the image and metadata to your backend
     const formData = new FormData();
-    
+
     // Extract filename from URI
     const filename = imageUri.split('/').pop();
     const match = /\.(\w+)$/.exec(filename);
     const type = match ? `image/${match[1]}` : 'image/jpeg';
-    
+
     // Append the image file
     formData.append('receiptImage', {
       uri: imageUri,
       type: type,
       name: filename || 'receipt.jpg',
     });
-    
+
     // Append metadata as JSON string
     formData.append('metadata', JSON.stringify({
       projectId: metadata.projectId || null,
@@ -37,7 +37,7 @@ export const processReceiptImage = async (imageUri, metadata = {}, options = {})
       // Add any other metadata fields your backend expects
       ...metadata
     }));
-    
+
     // Append any additional Taggun options
     if (options.language) {
       formData.append('language', options.language);
@@ -45,7 +45,7 @@ export const processReceiptImage = async (imageUri, metadata = {}, options = {})
     if (options.currency) {
       formData.append('currency', options.currency);
     }
-    
+
     // Make the API call to YOUR backend
     const response = await axios.post(`${BACKEND_API_URL}/receipts/process`, formData, {
       headers: {
@@ -58,10 +58,10 @@ export const processReceiptImage = async (imageUri, metadata = {}, options = {})
 
     // Your backend should return normalized receipt data
     return response.data;
-    
+
   } catch (error) {
     console.error('Error sending receipt to backend:', error);
-    
+
     // Provide user-friendly error messages
     if (error.response) {
       // The request was made and the server responded with a status code
@@ -84,7 +84,7 @@ export const processReceiptImage = async (imageUri, metadata = {}, options = {})
 const mockBackendResponse = async (imageUri, metadata) => {
   // Simulate network delay
   await new Promise(resolve => setTimeout(resolve, 1500));
-  
+
   // Return mock data that your backend would return
   return {
     success: true,
@@ -139,14 +139,35 @@ const mockBackendResponse = async (imageUri, metadata) => {
 };
 
 /**
+ * Mock version of processReceiptImage for development
+ */
+const processReceiptImageMock = async (imageUri, metadata = {}, options = {}) => {
+  console.log('Using mock backend data (no backend URL configured)');
+  return await mockBackendResponse(imageUri, metadata);
+};
+
+// Check if backend URL is configured and export the appropriate function
+const isBackendConfigured = process.env.EXPO_PUBLIC_BACKEND_API_URL &&
+                             process.env.EXPO_PUBLIC_BACKEND_API_URL !== 'https://your-backend.com/api';
+
+if (!isBackendConfigured) {
+  console.warn('Backend API URL not configured. Using mock data for development.');
+}
+
+/**
+ * Export the appropriate implementation based on backend configuration
+ */
+export const processReceiptImage = isBackendConfigured ? processReceiptImageReal : processReceiptImageMock;
+
+/**
  * Normalize receipt data to a simpler format for the app
  * This should match what your backend returns
  */
 export const normalizeReceiptData = (backendResponse) => {
   if (!backendResponse || !backendResponse.data) return null;
-  
+
   const taggunResponse = backendResponse.data;
-  
+
   return {
     merchant: taggunResponse.merchant?.name || '',
     total: taggunResponse.totalAmount?.data?.toString() || '',
@@ -160,14 +181,3 @@ export const normalizeReceiptData = (backendResponse) => {
     metadata: backendResponse.metadata || {},
   };
 };
-
-// Fallback to mock if no backend URL is configured
-if (!process.env.EXPO_PUBLIC_BACKEND_API_URL || process.env.EXPO_PUBLIC_BACKEND_API_URL === 'https://your-backend.com/api') {
-  console.warn('Backend API URL not configured. Using mock data for development.');
-  // Override the function to use mock data
-  const originalProcessReceiptImage = processReceiptImage;
-  export const processReceiptImage = async (imageUri, metadata = {}, options = {}) => {
-    console.log('Using mock backend data (no backend URL configured)');
-    return await mockBackendResponse(imageUri, metadata);
-  };
-}

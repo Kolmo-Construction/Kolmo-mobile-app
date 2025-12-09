@@ -33,7 +33,7 @@ const discovery = {
  * Authenticate with Google OAuth
  * @returns {Promise<Object>} - Access token and user info
  */
-export const authenticateWithGoogle = async () => {
+const authenticateWithGoogleReal = async () => {
   try {
     const request = new AuthSession.AuthRequest({
       clientId: GOOGLE_CLIENT_ID,
@@ -67,7 +67,7 @@ export const authenticateWithGoogle = async () => {
  * @param {string} projectId - Project identifier for organization
  * @returns {Promise<Object>} - Upload response with file ID
  */
-export const uploadToGoogleDrive = async (accessToken, file, metadata = {}, projectId = 'default') => {
+const uploadToGoogleDriveReal = async (accessToken, file, metadata = {}, projectId = 'default') => {
   try {
     // Create metadata for the file
     const fileMetadata = {
@@ -84,7 +84,7 @@ export const uploadToGoogleDrive = async (accessToken, file, metadata = {}, proj
     // For React Native, we need to handle FormData differently
     const form = new FormData();
     form.append('metadata', JSON.stringify(fileMetadata));
-    
+
     // In React Native, we can append the file directly
     // The file object should have uri, type, and name
     form.append('file', {
@@ -129,7 +129,7 @@ export const uploadToGoogleDrive = async (accessToken, file, metadata = {}, proj
  * @param {string} projectId - Project identifier
  * @returns {Promise<Object>} - Folder creation response
  */
-export const createProjectFolder = async (accessToken, projectId) => {
+const createProjectFolderReal = async (accessToken, projectId) => {
   try {
     const folderMetadata = {
       name: `Project_${projectId}`,
@@ -182,8 +182,20 @@ export const validateToken = async (accessToken) => {
   }
 };
 
-// Mock implementation for development
-const mockGoogleDriveUpload = async (file, metadata, projectId) => {
+/**
+ * Mock implementation for development (when no client ID is configured)
+ */
+const authenticateWithGoogleMock = async () => {
+  console.log('Mock Google authentication');
+  await new Promise(resolve => setTimeout(resolve, 500));
+  return {
+    accessToken: 'mock_access_token',
+    refreshToken: 'mock_refresh_token',
+    expiresIn: 3600,
+  };
+};
+
+const uploadToGoogleDriveMock = async (accessToken, file, metadata = {}, projectId = 'default') => {
   console.log('Mock Google Drive upload:', { file, metadata, projectId });
   await new Promise(resolve => setTimeout(resolve, 1000));
   return {
@@ -194,32 +206,27 @@ const mockGoogleDriveUpload = async (file, metadata, projectId) => {
   };
 };
 
-// Fallback to mock if no client ID is configured
-if (!process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID || process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID === 'YOUR_CLIENT_ID') {
+const createProjectFolderMock = async (accessToken, projectId) => {
+  console.log('Mock folder creation');
+  await new Promise(resolve => setTimeout(resolve, 500));
+  return {
+    success: true,
+    folderId: `mock_folder_${projectId}`,
+    name: `Project_${projectId}`,
+  };
+};
+
+// Check if Google Client ID is configured
+const isGoogleConfigured = process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID &&
+                            process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID !== 'YOUR_CLIENT_ID';
+
+if (!isGoogleConfigured) {
   console.warn('Google Client ID not configured. Using mock Google Drive service.');
-  
-  export const authenticateWithGoogle = async () => {
-    console.log('Mock Google authentication');
-    await new Promise(resolve => setTimeout(resolve, 500));
-    return {
-      accessToken: 'mock_access_token',
-      refreshToken: 'mock_refresh_token',
-      expiresIn: 3600,
-    };
-  };
-  
-  export const uploadToGoogleDrive = async (accessToken, file, metadata = {}, projectId = 'default') => {
-    console.log('Mock Google Drive upload');
-    return await mockGoogleDriveUpload(file, metadata, projectId);
-  };
-  
-  export const createProjectFolder = async (accessToken, projectId) => {
-    console.log('Mock folder creation');
-    await new Promise(resolve => setTimeout(resolve, 500));
-    return {
-      success: true,
-      folderId: `mock_folder_${projectId}`,
-      name: `Project_${projectId}`,
-    };
-  };
 }
+
+/**
+ * Export the appropriate implementations based on Google configuration
+ */
+export const authenticateWithGoogle = isGoogleConfigured ? authenticateWithGoogleReal : authenticateWithGoogleMock;
+export const uploadToGoogleDrive = isGoogleConfigured ? uploadToGoogleDriveReal : uploadToGoogleDriveMock;
+export const createProjectFolder = isGoogleConfigured ? createProjectFolderReal : createProjectFolderMock;
