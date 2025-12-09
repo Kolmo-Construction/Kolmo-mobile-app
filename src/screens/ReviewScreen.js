@@ -1,122 +1,27 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, SafeAreaView, TextInput, ScrollView, Image, Alert, ActivityIndicator } from 'react-native';
 import { uploadReceipt } from '../services/kolmoApiService';
-import { processReceiptImage, normalizeReceiptData } from '../services/taggunService';
 import { colors } from '../theme';
 
 export default function ReviewScreen({ route, navigation }) {
-  const { imageUri, receiptId, selectedProject } = route.params || {};
-  const [isLoading, setIsLoading] = useState(false);
+  const { imageUri, selectedProject } = route.params || {};
   const [isUploading, setIsUploading] = useState(false);
   const [receiptData, setReceiptData] = useState(null);
   const [editableData, setEditableData] = useState({
     merchant: '',
     total: '',
     tax: '',
-    currency: '',
+    currency: 'USD',
     date: '',
     time: '',
   });
-  const [lineItems, setLineItems] = useState([]);
-  const [categories, setCategories] = useState(['Food', 'Transportation', 'Office Supplies', 'Equipment', 'Other']);
-  const [selectedCategory, setSelectedCategory] = useState('Other');
+  const [categories] = useState(['materials', 'labor', 'equipment', 'other']);
+  const [selectedCategory, setSelectedCategory] = useState('other');
   const [notes, setNotes] = useState('');
 
-  const projectId = selectedProject?.id || selectedProject?._id || 'default-project';
+  const projectId = selectedProject?.id || selectedProject?._id;
 
-  const processReceipt = useCallback(async () => {
-    setIsLoading(true);
-    try {
-      if (imageUri) {
-        const metadata = {
-          projectId: projectId,
-          timestamp: new Date().toISOString(),
-        };
-        
-        const backendResponse = await processReceiptImage(imageUri, metadata);
-        const normalizedData = normalizeReceiptData(backendResponse);
-        
-        if (normalizedData) {
-          setReceiptData(backendResponse);
-          setEditableData({
-            merchant: normalizedData.merchant,
-            total: normalizedData.total,
-            tax: normalizedData.tax,
-            currency: normalizedData.currency,
-            date: normalizedData.date,
-            time: normalizedData.time,
-          });
-          if (normalizedData.lineItems && normalizedData.lineItems.length > 0) {
-            setLineItems(normalizedData.lineItems.map(item => ({
-              ...item,
-              id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
-              category: selectedCategory
-            })));
-          } else {
-            setLineItems([{
-              id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
-              description: '',
-              quantity: 1,
-              amount: '',
-              category: selectedCategory
-            }]);
-          }
-        } else {
-          throw new Error('No data received from backend');
-        }
-      } 
-      else if (receiptId) {
-        await new Promise(resolve => setTimeout(resolve, 500));
-        const mockBackendResponse = {
-          success: true,
-          receiptId: receiptId,
-          data: {
-            merchant: { name: 'Saved Store', confidence: 0.95 },
-            totalAmount: { data: 50.00, confidence: 0.98 },
-            taxAmount: { data: 4.00, confidence: 0.90 },
-            currency: 'USD',
-            date: { data: '2024-12-01', confidence: 0.85 },
-            time: { data: '10:30:00', confidence: 0.80 },
-            confidence: 0.90,
-          },
-          metadata: {
-            projectId: 'default-project',
-            processedAt: '2024-12-01T10:30:00Z'
-          }
-        };
-        const normalizedData = normalizeReceiptData(mockBackendResponse);
-        setReceiptData(mockBackendResponse);
-        setEditableData({
-          merchant: normalizedData.merchant,
-          total: normalizedData.total,
-          tax: normalizedData.tax,
-          currency: normalizedData.currency,
-          date: normalizedData.date,
-          time: normalizedData.time,
-        });
-        setLineItems([{
-          id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
-          description: '',
-          quantity: 1,
-          amount: '',
-          category: selectedCategory
-        }]);
-      }
-    } catch (error) {
-      Alert.alert('Processing Error', 'Failed to load receipt data. Please try again.');
-      console.error(error);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [imageUri, receiptId, projectId, selectedCategory]);
-
-  useEffect(() => {
-    if (imageUri || receiptId) {
-      processReceipt();
-    }
-  }, [imageUri, receiptId, processReceipt]);
-
-  const handleSave = async () => {
+  const handleUploadAndProcess = async () => {
     if (!selectedProject) {
       Alert.alert('Error', 'No project selected. Please go back and select a project.');
       return;
@@ -129,15 +34,40 @@ export default function ReviewScreen({ route, navigation }) {
 
     setIsUploading(true);
     try {
-      const notesText = notes || `${editableData.merchant} - $${editableData.total} - ${editableData.date}`;
-      
-      await uploadReceipt(projectId, imageUri, selectedCategory, notesText);
-      
-      Alert.alert(
-        'Receipt Uploaded',
-        'The receipt has been successfully uploaded to the project.',
-        [{ text: 'OK', onPress: () => navigation.navigate('Home') }]
-      );
+      console.log('Uploading receipt with OCR processing...');
+
+      // Upload to backend - backend will process OCR and return results
+      const response = await uploadReceipt(projectId, imageUri, selectedCategory, notes);
+
+      console.log('Receipt uploaded, OCR response:', JSON.stringify(response, null, 2));
+
+      // Extract OCR data from backend response
+      if (response && response.receipt) {
+        const receipt = response.receipt;
+        setReceiptData(response);
+        setEditableData({
+          merchant: receipt.vendorName || '',
+          total: receipt.totalAmount ? receipt.totalAmount.toString() : '',
+          tax: '', // Add if backend returns tax
+          currency: receipt.currency || 'USD',
+          date: receipt.receiptDate ? new Date(receipt.receiptDate).toISOString().split('T')[0] : '',
+          time: '',
+        });
+
+        // Show success message but DON'T navigate away so user can see OCR results
+        Alert.alert(
+          'Success!',
+          `Receipt uploaded and processed!\n\nMerchant: ${receipt.vendorName || 'N/A'}\nAmount: $${receipt.totalAmount || '0.00'}\nConfidence: ${receipt.ocrConfidence ? (parseFloat(receipt.ocrConfidence) * 100).toFixed(1) + '%' : 'N/A'}`,
+          [{ text: 'OK' }]
+        );
+      } else {
+        // If no OCR data, still show success but navigate home
+        Alert.alert(
+          'Receipt Uploaded',
+          'The receipt has been uploaded successfully.',
+          [{ text: 'OK', onPress: () => navigation.navigate('Home') }]
+        );
+      }
     } catch (error) {
       console.error('Upload error:', error);
       Alert.alert('Upload Failed', error.message || 'Failed to upload receipt. Please try again.');
@@ -153,284 +83,132 @@ export default function ReviewScreen({ route, navigation }) {
     }));
   };
 
-  const handleLineItemChange = (id, field, value) => {
-    setLineItems(prev => prev.map(item => 
-      item.id === id ? { ...item, [field]: value } : item
-    ));
-  };
-
-  const addLineItem = () => {
-    setLineItems(prev => [...prev, {
-      id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
-      description: '',
-      quantity: 1,
-      amount: '',
-      category: selectedCategory
-    }]);
-  };
-
-  const removeLineItem = (id) => {
-    if (lineItems.length > 1) {
-      setLineItems(prev => prev.filter(item => item.id !== id));
-    }
-  };
-
-  const updateCategoryForAllItems = (category) => {
-    setSelectedCategory(category);
-    setLineItems(prev => prev.map(item => ({ ...item, category })));
-  };
-
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView contentContainerStyle={styles.scrollContent}>
-        <Text style={styles.title}>Review & Edit</Text>
-        
-        {imageUri ? (
+        <Text style={styles.title}>Review Receipt</Text>
+
+        {imageUri && (
           <View style={styles.imageContainer}>
             <Image source={{ uri: imageUri }} style={styles.image} />
             <Text style={styles.imageCaption}>Captured Receipt</Text>
           </View>
-        ) : receiptId ? (
-          <View style={styles.imageContainer}>
-            <Text style={styles.savedReceiptText}>Saved Receipt</Text>
-            <Text style={styles.savedReceiptSubtext}>Receipt ID: {receiptId}</Text>
-          </View>
-        ) : null}
+        )}
 
-        {isLoading ? (
-          <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color={colors.accent} />
-            <Text style={styles.loadingText}>Processing receipt with OCR...</Text>
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Upload Details</Text>
+
+          <View style={styles.field}>
+            <Text style={styles.fieldLabel}>Project</Text>
+            <View style={styles.projectDisplay}>
+              <Text style={styles.projectName}>
+                {selectedProject?.name || selectedProject?.title || 'No project'}
+              </Text>
+            </View>
           </View>
-        ) : receiptData ? (
-          <>
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Project Information</Text>
-              
-              <View style={styles.field}>
-                <Text style={styles.fieldLabel}>Project</Text>
-                <View style={styles.projectDisplay}>
-                  <Text style={styles.projectName}>
-                    {selectedProject?.name || selectedProject?.title || projectId}
+
+          <View style={styles.field}>
+            <Text style={styles.fieldLabel}>Category</Text>
+            <View style={styles.categoryContainer}>
+              {categories.map(category => (
+                <TouchableOpacity
+                  key={category}
+                  style={[
+                    styles.categoryButton,
+                    selectedCategory === category && styles.categoryButtonSelected
+                  ]}
+                  onPress={() => setSelectedCategory(category)}
+                  disabled={isUploading}
+                >
+                  <Text style={[
+                    styles.categoryButtonText,
+                    selectedCategory === category && styles.categoryButtonTextSelected
+                  ]}>
+                    {category}
                   </Text>
-                  {selectedProject?.client && (
-                    <Text style={styles.projectClient}>{selectedProject.client}</Text>
-                  )}
-                </View>
-                <Text style={styles.helpText}>
-                  This receipt will be uploaded to this project
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+
+          <View style={styles.field}>
+            <Text style={styles.fieldLabel}>Notes (optional)</Text>
+            <TextInput
+              style={[styles.input, styles.notesInput]}
+              value={notes}
+              onChangeText={setNotes}
+              placeholder="Add any notes about this receipt"
+              multiline
+              numberOfLines={3}
+              editable={!isUploading}
+            />
+          </View>
+        </View>
+
+        {receiptData && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>✓ OCR Results</Text>
+
+            <View style={styles.ocrDataDisplay}>
+              <View style={styles.ocrRow}>
+                <Text style={styles.ocrLabel}>Merchant:</Text>
+                <Text style={styles.ocrValue}>{editableData.merchant || 'N/A'}</Text>
+              </View>
+              <View style={styles.ocrRow}>
+                <Text style={styles.ocrLabel}>Total:</Text>
+                <Text style={styles.ocrValue}>${editableData.total || '0.00'}</Text>
+              </View>
+              <View style={styles.ocrRow}>
+                <Text style={styles.ocrLabel}>Date:</Text>
+                <Text style={styles.ocrValue}>{editableData.date || 'N/A'}</Text>
+              </View>
+              <View style={styles.ocrRow}>
+                <Text style={styles.ocrLabel}>Currency:</Text>
+                <Text style={styles.ocrValue}>{editableData.currency || 'USD'}</Text>
+              </View>
+            </View>
+
+            {receiptData.receipt?.ocrConfidence && (
+              <View style={styles.confidenceContainer}>
+                <Text style={styles.confidenceLabel}>
+                  OCR Confidence: {(parseFloat(receiptData.receipt.ocrConfidence) * 100).toFixed(1)}%
                 </Text>
               </View>
+            )}
 
-              <View style={styles.field}>
-                <Text style={styles.fieldLabel}>Notes (optional)</Text>
-                <TextInput
-                  style={[styles.input, styles.notesInput]}
-                  value={notes}
-                  onChangeText={setNotes}
-                  placeholder="Add any notes about this receipt"
-                  multiline
-                  numberOfLines={3}
-                />
-              </View>
-            </View>
-
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Receipt Details</Text>
-              
-              <View style={styles.field}>
-                <Text style={styles.fieldLabel}>Merchant</Text>
-                <TextInput
-                  style={styles.input}
-                  value={editableData.merchant}
-                  onChangeText={(text) => handleFieldChange('merchant', text)}
-                  placeholder="Merchant name"
-                />
-              </View>
-
-              <View style={styles.field}>
-                <Text style={styles.fieldLabel}>Total Amount</Text>
-                <TextInput
-                  style={styles.input}
-                  value={editableData.total}
-                  onChangeText={(text) => handleFieldChange('total', text)}
-                  placeholder="0.00"
-                  keyboardType="decimal-pad"
-                />
-              </View>
-
-              <View style={styles.field}>
-                <Text style={styles.fieldLabel}>Tax</Text>
-                <TextInput
-                  style={styles.input}
-                  value={editableData.tax}
-                  onChangeText={(text) => handleFieldChange('tax', text)}
-                  placeholder="0.00"
-                  keyboardType="decimal-pad"
-                />
-              </View>
-
-              <View style={styles.field}>
-                <Text style={styles.fieldLabel}>Currency</Text>
-                <TextInput
-                  style={styles.input}
-                  value={editableData.currency}
-                  onChangeText={(text) => handleFieldChange('currency', text)}
-                  placeholder="USD"
-                />
-              </View>
-
-              <View style={styles.field}>
-                <Text style={styles.fieldLabel}>Date</Text>
-                <TextInput
-                  style={styles.input}
-                  value={editableData.date}
-                  onChangeText={(text) => handleFieldChange('date', text)}
-                  placeholder="YYYY-MM-DD"
-                />
-              </View>
-
-              <View style={styles.field}>
-                <Text style={styles.fieldLabel}>Time</Text>
-                <TextInput
-                  style={styles.input}
-                  value={editableData.time}
-                  onChangeText={(text) => handleFieldChange('time', text)}
-                  placeholder="HH:MM"
-                />
-              </View>
-
-              {(() => {
-                const confidence = receiptData?.confidence ?? receiptData?.data?.confidence ?? 0.5;
-                return (
-                <View style={styles.confidenceContainer}>
-                  <Text style={styles.confidenceLabel}>OCR Confidence:</Text>
-                  <View style={styles.confidenceBar}>
-                    <View 
-                      style={[
-                        styles.confidenceFill, 
-                        { 
-                          width: `${(confidence * 100).toFixed(0)}%`,
-                          backgroundColor: confidence > 0.8 ? colors.success : 
-                                         confidence > 0.6 ? colors.accent : colors.error
-                        }
-                      ]} 
-                    />
-                  </View>
-                  <Text style={styles.confidenceText}>
-                    {(confidence * 100).toFixed(1)}%
-                  </Text>
-                </View>
-                );
-              })()}
-
-              <View style={styles.field}>
-                <Text style={styles.fieldLabel}>Category</Text>
-                <View style={styles.categoryContainer}>
-                  {categories.map(category => (
-                    <TouchableOpacity
-                      key={category}
-                      style={[
-                        styles.categoryButton,
-                        selectedCategory === category && styles.categoryButtonSelected
-                      ]}
-                      onPress={() => updateCategoryForAllItems(category)}
-                    >
-                      <Text style={[
-                        styles.categoryButtonText,
-                        selectedCategory === category && styles.categoryButtonTextSelected
-                      ]}>
-                        {category}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              </View>
-
-              <View style={styles.field}>
-                <View style={styles.lineItemsHeader}>
-                  <Text style={styles.fieldLabel}>Line Items</Text>
-                  <TouchableOpacity onPress={addLineItem}>
-                    <Text style={styles.addItemText}>+ Add Item</Text>
-                  </TouchableOpacity>
-                </View>
-                
-                {lineItems.map((item, index) => (
-                  <View key={item.id} style={styles.lineItemContainer}>
-                    <View style={styles.lineItemHeader}>
-                      <Text style={styles.lineItemNumber}>Item {index + 1}</Text>
-                      {lineItems.length > 1 && (
-                        <TouchableOpacity onPress={() => removeLineItem(item.id)}>
-                          <Text style={styles.removeItemText}>Remove</Text>
-                        </TouchableOpacity>
-                      )}
-                    </View>
-                    
-                    <TextInput
-                      style={styles.input}
-                      placeholder="Description"
-                      value={item.description}
-                      onChangeText={(text) => handleLineItemChange(item.id, 'description', text)}
-                    />
-                    
-                    <View style={styles.lineItemRow}>
-                      <TextInput
-                        style={[styles.input, styles.smallInput]}
-                        placeholder="Qty"
-                        value={item.quantity.toString()}
-                        onChangeText={(text) => handleLineItemChange(item.id, 'quantity', parseInt(text) || 1)}
-                        keyboardType="numeric"
-                      />
-                      <TextInput
-                        style={[styles.input, styles.amountInput]}
-                        placeholder="Amount"
-                        value={item.amount}
-                        onChangeText={(text) => handleLineItemChange(item.id, 'amount', text)}
-                        keyboardType="decimal-pad"
-                      />
-                    </View>
-                  </View>
-                ))}
-                
-                {lineItems.length > 0 && (
-                  <View style={styles.lineItemsTotal}>
-                    <Text style={styles.totalLabel}>Line Items Total:</Text>
-                    <Text style={styles.totalAmount}>
-                      ${lineItems.reduce((sum, item) => sum + (parseFloat(item.amount) || 0), 0).toFixed(2)}
-                    </Text>
-                  </View>
-                )}
-              </View>
-            </View>
-
-            <View style={styles.buttonRow}>
-              <TouchableOpacity 
-                style={[styles.button, styles.secondaryButton]}
-                onPress={() => navigation.goBack()}
-                disabled={isUploading}
-              >
-                <Text style={styles.secondaryButtonText}>Retake Photo</Text>
-              </TouchableOpacity>
-              
-              <TouchableOpacity 
-                style={[styles.button, isUploading && styles.buttonDisabled]}
-                onPress={handleSave}
-                disabled={isUploading}
-              >
-                {isUploading ? (
-                  <View style={styles.uploadingContainer}>
-                    <ActivityIndicator color={colors.white} size="small" />
-                    <Text style={[styles.buttonText, { marginLeft: 8 }]}>Uploading...</Text>
-                  </View>
-                ) : (
-                  <Text style={styles.buttonText}>Upload Receipt</Text>
-                )}
-              </TouchableOpacity>
-            </View>
-          </>
-        ) : (
-          <Text style={styles.noDataText}>No receipt data available.</Text>
+            <TouchableOpacity
+              style={[styles.button, { marginTop: 20 }]}
+              onPress={() => navigation.navigate('Home')}
+            >
+              <Text style={styles.buttonText}>Done</Text>
+            </TouchableOpacity>
+          </View>
         )}
+
+        <View style={styles.buttonRow}>
+          <TouchableOpacity
+            style={[styles.button, styles.secondaryButton]}
+            onPress={() => navigation.goBack()}
+            disabled={isUploading}
+          >
+            <Text style={styles.secondaryButtonText}>Cancel</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.button, isUploading && styles.buttonDisabled]}
+            onPress={handleUploadAndProcess}
+            disabled={isUploading}
+          >
+            {isUploading ? (
+              <View style={styles.uploadingContainer}>
+                <ActivityIndicator color={colors.white} size="small" />
+                <Text style={[styles.buttonText, { marginLeft: 8 }]}>Uploading...</Text>
+              </View>
+            ) : (
+              <Text style={styles.buttonText}>Upload & Process</Text>
+            )}
+          </TouchableOpacity>
+        </View>
       </ScrollView>
     </SafeAreaView>
   );
@@ -543,27 +321,30 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  ocrDataDisplay: {
+    backgroundColor: colors.muted,
+    padding: 15,
+    borderRadius: 8,
+    marginBottom: 15,
+  },
+  ocrRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 10,
+  },
+  ocrLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.secondary,
+  },
+  ocrValue: {
+    fontSize: 14,
+    color: colors.foreground,
+  },
   confidenceContainer: {
-    marginTop: 15,
-    marginBottom: 20,
+    marginTop: 10,
   },
   confidenceLabel: {
-    fontSize: 14,
-    color: colors.secondary,
-    marginBottom: 5,
-  },
-  confidenceBar: {
-    height: 10,
-    backgroundColor: '#e0e0e0',
-    borderRadius: 5,
-    overflow: 'hidden',
-    marginBottom: 5,
-  },
-  confidenceFill: {
-    height: '100%',
-    borderRadius: 5,
-  },
-  confidenceText: {
     fontSize: 14,
     color: colors.secondary,
     textAlign: 'center',

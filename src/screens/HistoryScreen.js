@@ -1,30 +1,77 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, SafeAreaView, FlatList } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, SafeAreaView, FlatList, ActivityIndicator, Alert } from 'react-native';
+import { fetchProjects, fetchReceipts } from '../services/kolmoApiService';
 import { colors } from '../theme';
 
-const mockReceipts = [
-  { id: '1', merchant: 'Grocery Store', total: '$45.67', date: '2024-12-01', time: '10:30 AM' },
-  { id: '2', merchant: 'Gas Station', total: '$32.50', date: '2024-12-02', time: '14:15 PM' },
-  { id: '3', merchant: 'Restaurant', total: '$78.90', date: '2024-12-03', time: '19:45 PM' },
-  { id: '4', merchant: 'Electronics Store', total: '$299.99', date: '2024-12-04', time: '11:20 AM' },
-  { id: '5', merchant: 'Pharmacy', total: '$22.35', date: '2024-12-05', time: '16:10 PM' },
-];
-
 export default function HistoryScreen({ navigation }) {
-  const [receipts, setReceipts] = useState(mockReceipts);
+  const [receipts, setReceipts] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
 
-  const renderReceiptItem = ({ item }) => (
-    <TouchableOpacity 
-      style={styles.receiptCard}
-      onPress={() => navigation.navigate('Review', { receiptId: item.id })}
-    >
-      <View style={styles.receiptHeader}>
-        <Text style={styles.merchantText}>{item.merchant}</Text>
-        <Text style={styles.totalText}>{item.total}</Text>
-      </View>
-      <Text style={styles.dateText}>{item.date} at {item.time}</Text>
-    </TouchableOpacity>
-  );
+  useEffect(() => {
+    loadAllReceipts();
+  }, []);
+
+  const loadAllReceipts = async () => {
+    setIsLoading(true);
+    try {
+      // First, get all projects
+      const projects = await fetchProjects();
+
+      // Then fetch receipts from all projects
+      const allReceipts = [];
+      for (const project of projects) {
+        try {
+          const projectReceipts = await fetchReceipts(project.id);
+          // Add project info to each receipt
+          const receiptsWithProject = projectReceipts.map(r => ({
+            ...r,
+            projectName: project.name
+          }));
+          allReceipts.push(...receiptsWithProject);
+        } catch (err) {
+          console.log(`No receipts for project ${project.name}`);
+        }
+      }
+
+      // Sort by date, newest first
+      allReceipts.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
+      setReceipts(allReceipts);
+    } catch (error) {
+      console.error('Error loading receipts:', error);
+      Alert.alert('Error', 'Failed to load receipt history');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const renderReceiptItem = ({ item }) => {
+    const date = new Date(item.receiptDate || item.createdAt);
+    const dateStr = date.toLocaleDateString();
+    const timeStr = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+    return (
+      <TouchableOpacity
+        style={styles.receiptCard}
+        onPress={() => {
+          // TODO: Navigate to receipt detail view
+          Alert.alert('Receipt Details', `Receipt from ${item.vendorName}\nAmount: $${item.totalAmount}`);
+        }}
+      >
+        <View style={styles.receiptHeader}>
+          <Text style={styles.merchantText}>{item.vendorName || 'Unknown Merchant'}</Text>
+          <Text style={styles.totalText}>${item.totalAmount || '0.00'}</Text>
+        </View>
+        <Text style={styles.dateText}>{dateStr} at {timeStr}</Text>
+        {item.projectName && (
+          <Text style={styles.projectText}>Project: {item.projectName}</Text>
+        )}
+        {item.category && (
+          <Text style={styles.categoryText}>Category: {item.category}</Text>
+        )}
+      </TouchableOpacity>
+    );
+  };
 
   return (
     <SafeAreaView style={styles.container}>
@@ -32,22 +79,29 @@ export default function HistoryScreen({ navigation }) {
         <Text style={styles.title}>Receipt History</Text>
         <Text style={styles.subtitle}>View and manage your digitized receipts</Text>
       </View>
-      
-      {receipts.length > 0 ? (
+
+      {isLoading ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={colors.accent} />
+          <Text style={styles.loadingText}>Loading receipts...</Text>
+        </View>
+      ) : receipts.length > 0 ? (
         <FlatList
           data={receipts}
           renderItem={renderReceiptItem}
-          keyExtractor={item => item.id}
+          keyExtractor={item => item.id.toString()}
           contentContainerStyle={styles.listContent}
+          onRefresh={loadAllReceipts}
+          refreshing={isLoading}
         />
       ) : (
         <View style={styles.emptyContainer}>
           <Text style={styles.emptyText}>No receipts yet</Text>
-          <TouchableOpacity 
+          <TouchableOpacity
             style={styles.button}
-            onPress={() => navigation.navigate('Camera')}
+            onPress={() => navigation.navigate('Home')}
           >
-            <Text style={styles.buttonText}>Capture Your First Receipt</Text>
+            <Text style={styles.buttonText}>Go Back to Home</Text>
           </TouchableOpacity>
         </View>
       )}
@@ -108,6 +162,28 @@ const styles = StyleSheet.create({
   },
   dateText: {
     fontSize: 14,
+    color: colors.secondary,
+    marginBottom: 5,
+  },
+  projectText: {
+    fontSize: 12,
+    color: colors.primary,
+    fontWeight: '500',
+  },
+  categoryText: {
+    fontSize: 12,
+    color: colors.secondary,
+    fontStyle: 'italic',
+    marginTop: 2,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    marginTop: 10,
+    fontSize: 16,
     color: colors.secondary,
   },
   emptyContainer: {

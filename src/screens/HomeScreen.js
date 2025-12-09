@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, SafeAreaView, ScrollView, ActivityIndicator, Alert, Image } from 'react-native';
 import { fetchProjects } from '../services/kolmoApiService';
+import { logout } from '../services/authService';
 import { colors } from '../theme';
 
-export default function HomeScreen({ navigation }) {
+export default function HomeScreen({ navigation, route }) {
+  const { currentUser, onLogout } = route.params || {};
   const [projects, setProjects] = useState([]);
   const [selectedProject, setSelectedProject] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -36,6 +38,26 @@ export default function HomeScreen({ navigation }) {
       return;
     }
     navigation.navigate('Camera', { selectedProject });
+  };
+
+  const handleLogout = async () => {
+    Alert.alert(
+      'Logout',
+      'Are you sure you want to logout?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Logout',
+          style: 'destructive',
+          onPress: async () => {
+            await logout();
+            if (onLogout) {
+              onLogout();
+            }
+          },
+        },
+      ]
+    );
   };
 
   return (
@@ -129,13 +151,28 @@ export default function HomeScreen({ navigation }) {
 
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Time Tracking</Text>
-          <TouchableOpacity 
+          <TouchableOpacity
             style={[styles.button, styles.timeButton]}
             onPress={() => navigation.navigate('TimeZone')}
           >
             <Text style={styles.buttonText}>TimeZone Auto Check-in</Text>
           </TouchableOpacity>
         </View>
+
+        {currentUser && (
+          <View style={styles.userSection}>
+            <Text style={styles.userInfo}>
+              Logged in as: {currentUser.firstName} {currentUser.lastName}
+            </Text>
+            <Text style={styles.userEmail}>{currentUser.email}</Text>
+            <TouchableOpacity
+              style={styles.logoutButton}
+              onPress={handleLogout}
+            >
+              <Text style={styles.logoutButtonText}>Logout</Text>
+            </TouchableOpacity>
+          </View>
+        )}
       </ScrollView>
     </SafeAreaView>
   );
@@ -269,5 +306,35 @@ const styles = StyleSheet.create({
   },
   timeButton: {
     backgroundColor: colors.primary,
+  },
+  userSection: {
+    marginTop: 30,
+    padding: 20,
+    backgroundColor: colors.white,
+    borderRadius: 10,
+    alignItems: 'center',
+  },
+  userInfo: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.foreground,
+    marginBottom: 5,
+  },
+  userEmail: {
+    fontSize: 14,
+    color: colors.secondary,
+    marginBottom: 15,
+  },
+  logoutButton: {
+    paddingVertical: 10,
+    paddingHorizontal: 30,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: colors.error,
+  },
+  logoutButtonText: {
+    color: colors.error,
+    fontSize: 14,
+    fontWeight: '600',
   },
 });
