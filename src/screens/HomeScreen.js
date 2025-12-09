@@ -62,19 +62,23 @@ export default function HomeScreen({ navigation }) {
             <Text style={styles.noProjectsText}>No active projects found</Text>
           ) : (
             <View style={styles.projectList}>
-              {projects.map((project) => (
+              {projects.map((project) => {
+                const projectId = project.id || project._id;
+                const selectedId = selectedProject?.id || selectedProject?._id;
+                const isSelected = selectedId === projectId;
+                return (
                 <TouchableOpacity
-                  key={project.id || project._id}
+                  key={projectId}
                   style={[
                     styles.projectItem,
-                    selectedProject?.id === project.id && styles.projectItemSelected,
+                    isSelected && styles.projectItemSelected,
                   ]}
                   onPress={() => setSelectedProject(project)}
                 >
                   <Text
                     style={[
                       styles.projectName,
-                      selectedProject?.id === project.id && styles.projectNameSelected,
+                      isSelected && styles.projectNameSelected,
                     ]}
                   >
                     {project.name || project.title || `Project ${project.id}`}
@@ -83,7 +87,8 @@ export default function HomeScreen({ navigation }) {
                     <Text style={styles.projectClient}>{project.client}</Text>
                   )}
                 </TouchableOpacity>
-              ))}
+              );
+              })}
             </View>
           )}
         </View>

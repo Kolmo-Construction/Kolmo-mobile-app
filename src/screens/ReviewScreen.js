@@ -308,24 +308,29 @@ export default function ReviewScreen({ route, navigation }) {
               </View>
 
               {/* Confidence Visualization */}
-              <View style={styles.confidenceContainer}>
-                <Text style={styles.confidenceLabel}>OCR Confidence:</Text>
-                <View style={styles.confidenceBar}>
-                  <View 
-                    style={[
-                      styles.confidenceFill, 
-                      { 
-                        width: `${(receiptData.confidence * 100).toFixed(0)}%`,
-                        backgroundColor: receiptData.confidence > 0.8 ? '#4CAF50' : 
-                                       receiptData.confidence > 0.6 ? '#FF9800' : '#f44336'
-                      }
-                    ]} 
-                  />
+              {(() => {
+                const confidence = receiptData?.confidence ?? receiptData?.data?.confidence ?? 0.5;
+                return (
+                <View style={styles.confidenceContainer}>
+                  <Text style={styles.confidenceLabel}>OCR Confidence:</Text>
+                  <View style={styles.confidenceBar}>
+                    <View 
+                      style={[
+                        styles.confidenceFill, 
+                        { 
+                          width: `${(confidence * 100).toFixed(0)}%`,
+                          backgroundColor: confidence > 0.8 ? '#4CAF50' : 
+                                         confidence > 0.6 ? '#FF9800' : '#f44336'
+                        }
+                      ]} 
+                    />
+                  </View>
+                  <Text style={styles.confidenceText}>
+                    {(confidence * 100).toFixed(1)}%
+                  </Text>
                 </View>
-                <Text style={styles.confidenceText}>
-                  {(receiptData.confidence * 100).toFixed(1)}%
-                </Text>
-              </View>
+                );
+              })()}
 
               {/* Receipt Categorization */}
               <View style={styles.field}>
