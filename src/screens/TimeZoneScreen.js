@@ -3,12 +3,12 @@ import { View, Text, StyleSheet, TouchableOpacity, SafeAreaView, Switch, ScrollV
 import * as Location from 'expo-location';
 import * as TaskManager from 'expo-task-manager';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { colors } from '../theme';
 
 const LOCATION_TASK_NAME = 'background-location-task';
 const STORAGE_KEY_SITES = 'timezone_sites';
 const STORAGE_KEY_SESSIONS = 'timezone_sessions';
 
-// Define the background location task
 TaskManager.defineTask(LOCATION_TASK_NAME, async ({ data, error }) => {
   if (error) {
     console.error('Background location task error:', error);
@@ -25,9 +25,6 @@ TaskManager.defineTask(LOCATION_TASK_NAME, async ({ data, error }) => {
         longitude: location.coords.longitude,
         timestamp: new Date(location.timestamp).toISOString(),
       });
-      
-      // In a real implementation, we would process the location here
-      // For now, we'll just log it
     }
   }
 });
@@ -50,7 +47,7 @@ export default function TimeZoneScreen() {
     radius: '100',
   });
   const [settings, setSettings] = useState({
-    minDuration: 5, // minutes
+    minDuration: 5,
     workdayStart: '09:00',
     workdayEnd: '17:00',
     autoSync: false,
@@ -63,7 +60,6 @@ export default function TimeZoneScreen() {
     checkLocationPermission();
     loadSettings();
     
-    // Cleanup on unmount
     return () => {
       if (subscriptionRef.current) {
         subscriptionRef.current.remove();
@@ -84,25 +80,21 @@ export default function TimeZoneScreen() {
 
   const loadSavedData = async () => {
     try {
-      // Load saved job sites
       const savedSites = await AsyncStorage.getItem(STORAGE_KEY_SITES);
       if (savedSites) {
         setJobSites(JSON.parse(savedSites));
       } else {
-        // Load mock sites if none saved
         setJobSites([
           { id: '1', name: 'Site A - Warehouse', latitude: 37.7749, longitude: -122.4194, radius: 100 },
           { id: '2', name: 'Client X HQ', latitude: 37.7849, longitude: -122.4094, radius: 150 },
         ]);
       }
       
-      // Load saved sessions
       const savedSessions = await AsyncStorage.getItem(STORAGE_KEY_SESSIONS);
       if (savedSessions) {
         const parsedSessions = JSON.parse(savedSessions);
         setSessions(parsedSessions);
         
-        // Find active session
         const activeSession = parsedSessions.find(s => !s.checkOutTime);
         if (activeSession) {
           setCurrentSession(activeSession);
@@ -122,33 +114,29 @@ export default function TimeZoneScreen() {
 
   const toggleSwitch = async () => {
     if (!isEnabled) {
-      // Start tracking
       const { status } = await Location.requestBackgroundPermissionsAsync();
       if (status !== 'granted') {
         Alert.alert('Permission needed', 'Background location permission is required for automatic check-in.');
         return;
       }
       
-      // Start foreground location updates for immediate feedback
       const foregroundSubscription = await Location.watchPositionAsync(
         {
           accuracy: Location.Accuracy.Balanced,
-          timeInterval: 10000, // 10 seconds
-          distanceInterval: 10, // 10 meters
+          timeInterval: 10000,
+          distanceInterval: 10,
         },
         (location) => {
           handleLocationUpdate(location);
         }
       );
       
-      // Store subscription for cleanup
       subscriptionRef.current = foregroundSubscription;
       
-      // Also start background updates for when app is in background
       await Location.startLocationUpdatesAsync(LOCATION_TASK_NAME, {
         accuracy: Location.Accuracy.Balanced,
-        timeInterval: 30000, // 30 seconds
-        distanceInterval: 50, // 50 meters
+        timeInterval: 30000,
+        distanceInterval: 50,
         foregroundService: {
           notificationTitle: 'TimeZone Tracking',
           notificationBody: 'Tracking your location for automatic check-in',
@@ -159,7 +147,6 @@ export default function TimeZoneScreen() {
       setIsEnabled(true);
       Alert.alert('TimeZone Enabled', 'Automatic check-in/check-out is now active.');
     } else {
-      // Stop tracking
       if (subscriptionRef.current) {
         subscriptionRef.current.remove();
         subscriptionRef.current = null;
@@ -176,7 +163,6 @@ export default function TimeZoneScreen() {
     const { latitude, longitude } = location.coords;
     setLocation({ latitude, longitude });
     
-    // Check if user is within any job site
     const currentTime = new Date().toISOString();
     
     for (const site of jobSites) {
@@ -190,20 +176,16 @@ export default function TimeZoneScreen() {
       const isWithinSite = distance <= parseFloat(site.radius);
       
       if (isWithinSite) {
-        // User is within a job site
         if (!currentSession || currentSession.siteId !== site.id) {
-          // Check in to this site
           await checkInToSite(site, currentTime);
         }
-        return; // Found a matching site, no need to check others
+        return;
       }
     }
     
-    // User is not within any job site
     if (currentSession) {
-      // Check if user has been outside for more than the minimum duration
       const checkInTime = new Date(currentSession.checkInTime);
-      const timeOutside = (new Date() - checkInTime) / (1000 * 60); // minutes
+      const timeOutside = (new Date() - checkInTime) / (1000 * 60);
         
       if (timeOutside > settings.minDuration) {
         await checkOutFromSite(currentTime);
@@ -212,8 +194,7 @@ export default function TimeZoneScreen() {
   };
   
   const calculateDistance = (lat1, lon1, lat2, lon2) => {
-    // Haversine formula to calculate distance in meters
-    const R = 6371000; // Earth's radius in meters
+    const R = 6371000;
     const φ1 = lat1 * Math.PI / 180;
     const φ2 = lat2 * Math.PI / 180;
     const Δφ = (lat2 - lat1) * Math.PI / 180;
@@ -228,7 +209,6 @@ export default function TimeZoneScreen() {
   };
   
   const checkInToSite = async (site, timestamp) => {
-    // Check out of current session if exists
     if (currentSession) {
       await checkOutFromSite(timestamp);
     }
@@ -245,7 +225,6 @@ export default function TimeZoneScreen() {
     const updatedSessions = [newSession, ...sessions];
     setSessions(updatedSessions);
     
-    // Save to storage
     await AsyncStorage.setItem(STORAGE_KEY_SESSIONS, JSON.stringify(updatedSessions));
     
     Alert.alert('Auto Check-in', `You have been automatically checked in at ${site.name}`);
@@ -266,7 +245,6 @@ export default function TimeZoneScreen() {
     setCurrentSession(null);
     setSessions(updatedSessions);
     
-    // Save to storage
     await AsyncStorage.setItem(STORAGE_KEY_SESSIONS, JSON.stringify(updatedSessions));
     
     Alert.alert('Auto Check-out', `You have been automatically checked out from ${updatedSession.siteName}`);
@@ -319,7 +297,6 @@ export default function TimeZoneScreen() {
 
   const syncWithBackend = async () => {
     try {
-      // In a real implementation, this would send sessions to your backend
       Alert.alert(
         'Sync',
         'This would sync with your backend in a real implementation. Sessions remain local for now.',
@@ -342,8 +319,8 @@ export default function TimeZoneScreen() {
           <View style={styles.switchRow}>
             <Text style={styles.switchLabel}>Enable TimeZone Tracking</Text>
             <Switch
-              trackColor={{ false: '#767577', true: '#81b0ff' }}
-              thumbColor={isEnabled ? '#f5dd4b' : '#f4f3f4'}
+              trackColor={{ false: '#767577', true: colors.accent }}
+              thumbColor={isEnabled ? colors.white : '#f4f3f4'}
               ios_backgroundColor="#3e3e3e"
               onValueChange={toggleSwitch}
               value={isEnabled}
@@ -485,18 +462,6 @@ export default function TimeZoneScreen() {
                 <Text style={styles.historyTime}>
                   Out: {session.checkOutTime ? new Date(session.checkOutTime).toLocaleString() : 'In progress'}
                 </Text>
-                <View style={styles.sessionTags}>
-                  {session.isBreak && (
-                    <View style={[styles.tag, styles.breakTag]}>
-                      <Text style={styles.tagText}>Break</Text>
-                    </View>
-                  )}
-                  {session.billable === false && (
-                    <View style={[styles.tag, styles.nonBillableTag]}>
-                      <Text style={styles.tagText}>Non-billable</Text>
-                    </View>
-                  )}
-                </View>
               </View>
             ))
           ) : (
@@ -505,7 +470,6 @@ export default function TimeZoneScreen() {
         </View>
       </ScrollView>
 
-      {/* Add Job Site Modal */}
       <Modal
         visible={showAddSiteModal}
         animationType="slide"
@@ -566,7 +530,6 @@ export default function TimeZoneScreen() {
         </View>
       </Modal>
 
-      {/* Settings Modal */}
       <Modal
         visible={showSettingsModal}
         animationType="slide"
@@ -613,6 +576,7 @@ export default function TimeZoneScreen() {
               <Switch
                 value={settings.autoSync}
                 onValueChange={(value) => setSettings({...settings, autoSync: value})}
+                trackColor={{ false: '#767577', true: colors.accent }}
               />
             </View>
             
@@ -629,88 +593,12 @@ export default function TimeZoneScreen() {
                 onPress={async () => {
                   await AsyncStorage.setItem('timezone_settings', JSON.stringify(settings));
                   setShowSettingsModal(false);
-                  Alert.alert('Settings Saved', 'Your settings have been updated.');
+                  Alert.alert('Settings Saved', 'Your settings have been saved.');
                 }}
               >
-                <Text style={styles.saveButtonText}>Save Settings</Text>
+                <Text style={styles.saveButtonText}>Save</Text>
               </TouchableOpacity>
             </View>
-          </View>
-        </View>
-      </Modal>
-
-      {/* Edit Session Modal */}
-      <Modal
-        visible={showEditSessionModal}
-        animationType="slide"
-        transparent={true}
-        onRequestClose={() => setShowEditSessionModal(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Edit Session</Text>
-            
-            {editingSession && (
-              <>
-                <View style={styles.settingRow}>
-                  <Text style={styles.settingLabel}>Start Time</Text>
-                  <TextInput
-                    style={styles.modalInput}
-                    value={new Date(editingSession.checkInTime).toLocaleString()}
-                    editable={false}
-                  />
-                </View>
-                
-                <View style={styles.settingRow}>
-                  <Text style={styles.settingLabel}>End Time</Text>
-                  <TextInput
-                    style={styles.modalInput}
-                    value={editingSession.checkOutTime ? new Date(editingSession.checkOutTime).toLocaleString() : 'In Progress'}
-                    editable={false}
-                  />
-                </View>
-                
-                <View style={styles.settingRow}>
-                  <Text style={styles.settingLabel}>Mark as Break</Text>
-                  <Switch
-                    value={editingSession.isBreak || false}
-                    onValueChange={(value) => setEditingSession({...editingSession, isBreak: value})}
-                  />
-                </View>
-                
-                <View style={styles.settingRow}>
-                  <Text style={styles.settingLabel}>Billable</Text>
-                  <Switch
-                    value={editingSession.billable !== false}
-                    onValueChange={(value) => setEditingSession({...editingSession, billable: value})}
-                  />
-                </View>
-                
-                <View style={styles.modalButtons}>
-                  <TouchableOpacity 
-                    style={[styles.modalButton, styles.cancelButton]}
-                    onPress={() => setShowEditSessionModal(false)}
-                  >
-                    <Text style={styles.cancelButtonText}>Cancel</Text>
-                  </TouchableOpacity>
-                  
-                  <TouchableOpacity 
-                    style={[styles.modalButton, styles.saveButton]}
-                    onPress={async () => {
-                      const updatedSessions = sessions.map(s => 
-                        s.id === editingSession.id ? editingSession : s
-                      );
-                      setSessions(updatedSessions);
-                      await AsyncStorage.setItem(STORAGE_KEY_SESSIONS, JSON.stringify(updatedSessions));
-                      setShowEditSessionModal(false);
-                      Alert.alert('Session Updated', 'Session has been updated successfully.');
-                    }}
-                  >
-                    <Text style={styles.saveButtonText}>Save Changes</Text>
-                  </TouchableOpacity>
-                </View>
-              </>
-            )}
           </View>
         </View>
       </Modal>
@@ -721,7 +609,7 @@ export default function TimeZoneScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: colors.muted,
   },
   scrollContent: {
     padding: 20,
@@ -731,201 +619,246 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     marginBottom: 10,
     textAlign: 'center',
-    color: '#333',
+    color: colors.primary,
   },
   subtitle: {
     fontSize: 16,
     marginBottom: 30,
     textAlign: 'center',
-    color: '#666',
+    color: colors.secondary,
   },
   section: {
     marginBottom: 25,
-  },
-  sectionTitle: {
-    fontSize: 20,
-    fontWeight: '600',
-    marginBottom: 15,
-    color: '#444',
-  },
-  switchRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 10,
-  },
-  switchLabel: {
-    fontSize: 18,
-    fontWeight: '500',
-    color: '#333',
-  },
-  switchHelp: {
-    fontSize: 14,
-    color: '#666',
-    fontStyle: 'italic',
-  },
-  sessionCard: {
-    backgroundColor: '#E8F5E9',
-    padding: 15,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: '#C8E6C9',
-  },
-  sessionSite: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#2E7D32',
-    marginBottom: 5,
-  },
-  sessionTime: {
-    fontSize: 16,
-    color: '#555',
-    marginBottom: 10,
-  },
-  buttonRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginTop: 10,
-  },
-  checkOutButton: {
-    flex: 1,
-    paddingVertical: 10,
-    borderRadius: 8,
-    alignItems: 'center',
-    marginHorizontal: 5,
-  },
-  manualButton: {
-    backgroundColor: '#FF9800',
-  },
-  autoButton: {
-    backgroundColor: '#4CAF50',
-  },
-  checkOutButtonText: {
-    color: 'white',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  noSession: {
-    fontSize: 16,
-    color: '#999',
-    fontStyle: 'italic',
-    textAlign: 'center',
-    padding: 20,
-  },
-  siteCard: {
-    backgroundColor: '#E3F2FD',
-    padding: 15,
-    borderRadius: 10,
-    marginBottom: 10,
-    borderWidth: 1,
-    borderColor: '#BBDEFB',
-  },
-  siteName: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#1565C0',
-    marginBottom: 5,
-  },
-  siteDetails: {
-    fontSize: 14,
-    color: '#555',
-    marginBottom: 5,
-  },
-  checkInText: {
-    fontSize: 14,
-    color: '#0D47A1',
-    fontStyle: 'italic',
-  },
-  sessionHistoryCard: {
-    backgroundColor: 'white',
-    padding: 15,
-    borderRadius: 10,
-    marginBottom: 10,
-    borderWidth: 1,
-    borderColor: '#ddd',
-  },
-  historySite: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#333',
-    marginBottom: 5,
-  },
-  historyTime: {
-    fontSize: 14,
-    color: '#666',
   },
   sectionHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 15,
+    marginBottom: 10,
   },
-  addButton: {
-    backgroundColor: '#4CAF50',
+  sectionTitle: {
+    fontSize: 20,
+    fontWeight: '600',
+    color: colors.primary,
+  },
+  switchRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: colors.white,
+    padding: 15,
+    borderRadius: 10,
+    marginBottom: 10,
+  },
+  switchLabel: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.foreground,
+  },
+  settingsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  switchHelp: {
+    flex: 1,
+    fontSize: 14,
+    color: colors.secondary,
+  },
+  settingsButton: {
+    backgroundColor: colors.secondary,
     paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 6,
+    paddingHorizontal: 15,
+    borderRadius: 5,
+    marginLeft: 10,
   },
-  addButtonText: {
-    color: 'white',
+  settingsButtonText: {
+    color: colors.white,
     fontSize: 14,
     fontWeight: '600',
+  },
+  sessionCard: {
+    backgroundColor: colors.white,
+    padding: 15,
+    borderRadius: 10,
+    borderLeftWidth: 4,
+    borderLeftColor: colors.accent,
+  },
+  sessionSite: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: colors.foreground,
+  },
+  sessionTime: {
+    fontSize: 14,
+    color: colors.secondary,
+    marginTop: 5,
+  },
+  buttonRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 15,
+  },
+  checkOutButton: {
+    paddingVertical: 10,
+    paddingHorizontal: 15,
+    borderRadius: 5,
+    flex: 1,
+    marginHorizontal: 5,
+    alignItems: 'center',
+  },
+  manualButton: {
+    backgroundColor: colors.accent,
+  },
+  autoButton: {
+    backgroundColor: colors.secondary,
+  },
+  checkOutButtonText: {
+    color: colors.white,
+    fontWeight: '600',
+    fontSize: 14,
+  },
+  noSession: {
+    textAlign: 'center',
+    color: colors.secondary,
+    fontSize: 14,
+    padding: 20,
+  },
+  addButton: {
+    backgroundColor: colors.accent,
+    paddingVertical: 8,
+    paddingHorizontal: 15,
+    borderRadius: 5,
+  },
+  addButtonText: {
+    color: colors.white,
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  noSitesText: {
+    textAlign: 'center',
+    color: colors.secondary,
+    fontSize: 14,
+    padding: 20,
+  },
+  siteCard: {
+    backgroundColor: colors.white,
+    padding: 15,
+    borderRadius: 10,
+    marginBottom: 10,
   },
   siteCardHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 5,
+    marginBottom: 10,
+  },
+  siteName: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.foreground,
   },
   deleteButton: {
-    backgroundColor: '#f44336',
-    paddingVertical: 4,
-    paddingHorizontal: 8,
-    borderRadius: 4,
+    padding: 5,
   },
   deleteButtonText: {
-    color: 'white',
-    fontSize: 12,
+    color: colors.error,
+    fontSize: 14,
+  },
+  siteDetails: {
+    fontSize: 14,
+    color: colors.secondary,
+    marginBottom: 5,
   },
   checkInButton: {
-    backgroundColor: '#2196F3',
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 6,
-    marginTop: 10,
+    backgroundColor: colors.primary,
+    paddingVertical: 10,
+    borderRadius: 5,
     alignItems: 'center',
+    marginTop: 10,
   },
   checkInButtonText: {
-    color: 'white',
-    fontSize: 14,
+    color: colors.white,
     fontWeight: '600',
   },
-  noSitesText: {
+  sessionActions: {
+    flexDirection: 'row',
+  },
+  syncButton: {
+    backgroundColor: colors.accent,
+    marginRight: 10,
+  },
+  clearButton: {
+    backgroundColor: colors.error,
+  },
+  smallButton: {
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 5,
+  },
+  syncButtonText: {
+    color: colors.white,
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  clearButtonText: {
+    color: colors.white,
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  sessionHistoryCard: {
+    backgroundColor: colors.white,
+    padding: 15,
+    borderRadius: 10,
+    marginBottom: 10,
+  },
+  sessionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 5,
+  },
+  historySite: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.foreground,
+  },
+  editButton: {
+    padding: 5,
+  },
+  editButtonText: {
+    color: colors.accent,
     fontSize: 14,
-    color: '#666',
-    fontStyle: 'italic',
+  },
+  historyTime: {
+    fontSize: 14,
+    color: colors.secondary,
+  },
+  noHistory: {
     textAlign: 'center',
+    color: colors.secondary,
+    fontSize: 14,
     padding: 20,
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
     justifyContent: 'center',
     alignItems: 'center',
+    backgroundColor: 'rgba(0,0,0,0.5)',
   },
   modalContent: {
-    backgroundColor: 'white',
-    borderRadius: 10,
-    padding: 20,
+    backgroundColor: colors.white,
+    borderRadius: 15,
+    padding: 25,
     width: '90%',
     maxWidth: 400,
   },
   modalTitle: {
-    fontSize: 20,
+    fontSize: 22,
     fontWeight: 'bold',
     marginBottom: 20,
     textAlign: 'center',
-    color: '#333',
+    color: colors.primary,
   },
   modalInput: {
     borderWidth: 1,
@@ -934,7 +867,16 @@ const styles = StyleSheet.create({
     padding: 12,
     fontSize: 16,
     marginBottom: 15,
-    backgroundColor: '#fafafa',
+    backgroundColor: colors.muted,
+  },
+  settingRow: {
+    marginBottom: 15,
+  },
+  settingLabel: {
+    fontSize: 14,
+    fontWeight: '500',
+    marginBottom: 5,
+    color: colors.secondary,
   },
   modalButtons: {
     flexDirection: 'row',
@@ -948,29 +890,20 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginHorizontal: 5,
   },
-  saveButton: {
-    backgroundColor: '#4CAF50',
-  },
   cancelButton: {
-    backgroundColor: '#f5f5f5',
-    borderWidth: 1,
-    borderColor: '#ddd',
-  },
-  saveButtonText: {
-    color: 'white',
-    fontSize: 16,
-    fontWeight: '600',
+    backgroundColor: 'transparent',
+    borderWidth: 2,
+    borderColor: colors.secondary,
   },
   cancelButtonText: {
-    color: '#666',
-    fontSize: 16,
+    color: colors.secondary,
     fontWeight: '600',
   },
-  noHistory: {
-    fontSize: 16,
-    color: '#999',
-    fontStyle: 'italic',
-    textAlign: 'center',
-    padding: 20,
+  saveButton: {
+    backgroundColor: colors.accent,
+  },
+  saveButtonText: {
+    color: colors.white,
+    fontWeight: '600',
   },
 });

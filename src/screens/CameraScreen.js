@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, SafeAreaView, Alert, ActivityIndicator } from 'react-native';
 import { Camera, useCameraPermissions } from 'expo-camera';
 import * as ImageManipulator from 'expo-image-manipulator';
+import { colors } from '../theme';
 
 export default function CameraScreen({ navigation, route }) {
   const { selectedProject } = route.params || {};
@@ -83,7 +84,7 @@ export default function CameraScreen({ navigation, route }) {
             disabled={isProcessing}
           >
             {isProcessing ? (
-              <ActivityIndicator color="white" />
+              <ActivityIndicator color={colors.primary} />
             ) : (
               <View style={styles.captureButtonInner} />
             )}
@@ -98,14 +99,15 @@ export default function CameraScreen({ navigation, route }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: colors.foreground,
   },
   projectBanner: {
-    backgroundColor: '#4CAF50',
+    backgroundColor: colors.accent,
     padding: 10,
     alignItems: 'center',
   },
   projectBannerText: {
-    color: 'white',
+    color: colors.white,
     fontSize: 14,
     fontWeight: '600',
   },
@@ -122,12 +124,12 @@ const styles = StyleSheet.create({
     width: 300,
     height: 400,
     borderWidth: 2,
-    borderColor: 'white',
+    borderColor: colors.accent,
     borderRadius: 10,
     backgroundColor: 'transparent',
   },
   guideText: {
-    color: 'white',
+    color: colors.white,
     fontSize: 16,
     marginTop: 20,
     textAlign: 'center',
@@ -140,15 +142,15 @@ const styles = StyleSheet.create({
     justifyContent: 'space-around',
     alignItems: 'center',
     padding: 20,
-    backgroundColor: 'rgba(0,0,0,0.5)',
+    backgroundColor: colors.primary,
   },
   flipButton: {
     padding: 15,
-    backgroundColor: 'rgba(255,255,255,0.3)',
+    backgroundColor: colors.secondary,
     borderRadius: 5,
   },
   flipButtonText: {
-    color: 'white',
+    color: colors.white,
     fontSize: 16,
   },
   captureButton: {
@@ -163,7 +165,7 @@ const styles = StyleSheet.create({
     width: 60,
     height: 60,
     borderRadius: 30,
-    backgroundColor: 'white',
+    backgroundColor: colors.accent,
   },
   placeholder: {
     width: 60,
@@ -172,14 +174,17 @@ const styles = StyleSheet.create({
     fontSize: 18,
     textAlign: 'center',
     marginBottom: 20,
+    color: colors.foreground,
+    padding: 20,
   },
   button: {
-    backgroundColor: '#4CAF50',
+    backgroundColor: colors.accent,
     padding: 15,
     borderRadius: 5,
+    marginHorizontal: 20,
   },
   buttonText: {
-    color: 'white',
+    color: colors.white,
     fontSize: 16,
     textAlign: 'center',
   },

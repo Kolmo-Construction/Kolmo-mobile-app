@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, SafeAreaView, ScrollView, ActivityIndicator, Alert } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, SafeAreaView, ScrollView, ActivityIndicator, Alert, Image } from 'react-native';
 import { fetchProjects } from '../services/kolmoApiService';
+import { colors } from '../theme';
 
 export default function HomeScreen({ navigation }) {
   const [projects, setProjects] = useState([]);
@@ -40,15 +41,21 @@ export default function HomeScreen({ navigation }) {
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView contentContainerStyle={styles.content}>
-        <Text style={styles.title}>Kolmo Mobile App</Text>
-        <Text style={styles.subtitle}>Capture receipts, document sites, and track time automatically</Text>
+        <View style={styles.logoContainer}>
+          <Image 
+            source={require('../../assets/kolmo-logo.png')} 
+            style={styles.logo}
+            resizeMode="contain"
+          />
+        </View>
+        <Text style={styles.subtitle}>Capture receipts, document sites, and track time</Text>
         
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Select Project</Text>
           
           {isLoading ? (
             <View style={styles.loadingContainer}>
-              <ActivityIndicator size="small" color="#4CAF50" />
+              <ActivityIndicator size="small" color={colors.accent} />
               <Text style={styles.loadingText}>Loading projects...</Text>
             </View>
           ) : error ? (
@@ -137,32 +144,33 @@ export default function HomeScreen({ navigation }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: colors.muted,
   },
   content: {
     padding: 20,
   },
-  title: {
-    fontSize: 32,
-    fontWeight: 'bold',
+  logoContainer: {
+    alignItems: 'center',
     marginBottom: 10,
-    textAlign: 'center',
-    color: '#333',
+  },
+  logo: {
+    width: 150,
+    height: 150,
   },
   subtitle: {
-    fontSize: 18,
+    fontSize: 16,
     marginBottom: 30,
     textAlign: 'center',
-    color: '#666',
+    color: colors.secondary,
   },
   section: {
     marginBottom: 25,
   },
   sectionTitle: {
-    fontSize: 22,
+    fontSize: 20,
     fontWeight: '600',
     marginBottom: 15,
-    color: '#444',
+    color: colors.primary,
     textAlign: 'center',
   },
   loadingContainer: {
@@ -174,32 +182,32 @@ const styles = StyleSheet.create({
   loadingText: {
     marginLeft: 10,
     fontSize: 14,
-    color: '#666',
+    color: colors.secondary,
   },
   errorContainer: {
     alignItems: 'center',
     padding: 20,
   },
   errorText: {
-    color: '#f44336',
+    color: colors.error,
     fontSize: 14,
     marginBottom: 10,
     textAlign: 'center',
   },
   retryButton: {
-    backgroundColor: '#f44336',
+    backgroundColor: colors.error,
     paddingVertical: 8,
     paddingHorizontal: 20,
     borderRadius: 5,
   },
   retryButtonText: {
-    color: 'white',
+    color: colors.white,
     fontSize: 14,
     fontWeight: '600',
   },
   noProjectsText: {
     textAlign: 'center',
-    color: '#888',
+    color: colors.secondary,
     fontSize: 14,
     padding: 20,
   },
@@ -207,7 +215,7 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   projectItem: {
-    backgroundColor: 'white',
+    backgroundColor: colors.white,
     padding: 15,
     borderRadius: 10,
     marginBottom: 10,
@@ -215,24 +223,24 @@ const styles = StyleSheet.create({
     borderColor: '#e0e0e0',
   },
   projectItemSelected: {
-    borderColor: '#4CAF50',
-    backgroundColor: '#f0fff0',
+    borderColor: colors.accent,
+    backgroundColor: '#fff9f0',
   },
   projectName: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#333',
+    color: colors.foreground,
   },
   projectNameSelected: {
-    color: '#4CAF50',
+    color: colors.accent,
   },
   projectClient: {
     fontSize: 14,
-    color: '#666',
+    color: colors.secondary,
     marginTop: 4,
   },
   button: {
-    backgroundColor: '#4CAF50',
+    backgroundColor: colors.accent,
     paddingVertical: 15,
     paddingHorizontal: 30,
     borderRadius: 10,
@@ -244,22 +252,22 @@ const styles = StyleSheet.create({
     backgroundColor: '#ccc',
   },
   buttonText: {
-    color: 'white',
+    color: colors.white,
     fontSize: 18,
     fontWeight: '600',
   },
   secondaryButton: {
     backgroundColor: 'transparent',
     borderWidth: 2,
-    borderColor: '#4CAF50',
+    borderColor: colors.accent,
   },
   secondaryButtonText: {
-    color: '#4CAF50',
+    color: colors.accent,
   },
   siteButton: {
-    backgroundColor: '#2196F3',
+    backgroundColor: colors.secondary,
   },
   timeButton: {
-    backgroundColor: '#FF9800',
+    backgroundColor: colors.primary,
   },
 });

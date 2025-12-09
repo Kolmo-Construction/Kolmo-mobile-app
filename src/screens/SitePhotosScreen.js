@@ -8,6 +8,7 @@ import * as MediaLibrary from 'expo-media-library';
 import * as Network from 'expo-network';
 import { authenticateWithGoogle, uploadToGoogleDrive } from '../services/googleDriveService';
 import { addToUploadQueue, getUploadQueue, processUploadQueue, getQueueStats, clearCompletedItems } from '../services/uploadQueueService';
+import { colors } from '../theme';
 
 export default function SitePhotosScreen({ navigation }) {
   const [images, setImages] = useState([]);
@@ -49,7 +50,6 @@ export default function SitePhotosScreen({ navigation }) {
         },
         (progress) => {
           console.log('Upload progress:', progress);
-          // Could update UI here with progress
         }
       );
       
@@ -71,7 +71,6 @@ export default function SitePhotosScreen({ navigation }) {
 
   useEffect(() => {
     (async () => {
-      // Request location permission
       const { status } = await Location.requestForegroundPermissionsAsync();
       setLocationPermission(status === 'granted');
       
@@ -84,13 +83,11 @@ export default function SitePhotosScreen({ navigation }) {
         });
       }
       
-      // Load queue stats
       await loadQueueStats();
     })();
   }, [loadQueueStats]);
 
   useEffect(() => {
-    // Check network status and process queue when coming online
     const checkNetworkAndProcess = async () => {
       const networkState = await Network.getNetworkStateAsync();
       if (networkState.isConnected && accessToken && queueStats.pending > 0) {
@@ -115,7 +112,7 @@ export default function SitePhotosScreen({ navigation }) {
       quality: 0.8,
       exif: true,
       allowsMultipleSelection: true,
-      selectionLimit: 10, // Allow up to 10 images
+      selectionLimit: 10,
     });
 
     if (!result.canceled) {
@@ -159,7 +156,6 @@ export default function SitePhotosScreen({ navigation }) {
 
     if (!result.canceled) {
       const asset = result.assets[0];
-      // Get current location if available
       let currentLocation = location;
       if (!currentLocation && locationPermission) {
         const loc = await Location.getCurrentPositionAsync({});
@@ -242,7 +238,6 @@ export default function SitePhotosScreen({ navigation }) {
       return;
     }
     
-    // Check if authenticated with Google
     if (!accessToken) {
       Alert.alert(
         'Authentication Required',
@@ -258,7 +253,6 @@ export default function SitePhotosScreen({ navigation }) {
     setIsUploading(true);
     
     try {
-      // Prepare metadata
       const metadata = {
         projectId,
         description,
@@ -271,7 +265,6 @@ export default function SitePhotosScreen({ navigation }) {
         }
       };
       
-      // Add each image to the upload queue
       for (const image of images) {
         const imageFilename = `site_photo_${Date.now()}_${projectId}_${image.id}.jpg`;
         
@@ -293,7 +286,6 @@ export default function SitePhotosScreen({ navigation }) {
         });
       }
       
-      // Add voice note to queue if exists
       if (sound) {
         const audioUri = sound._uri || sound.uri;
         const audioFilename = `voice_note_${Date.now()}_${projectId}.m4a`;
@@ -313,7 +305,6 @@ export default function SitePhotosScreen({ navigation }) {
         });
       }
       
-      // Add metadata file to queue
       const metadataFilename = `metadata_${Date.now()}_${projectId}.json`;
       const metadataUri = FileSystem.cacheDirectory + metadataFilename;
       await FileSystem.writeAsStringAsync(metadataUri, JSON.stringify(metadata, null, 2));
@@ -332,17 +323,14 @@ export default function SitePhotosScreen({ navigation }) {
         projectId,
       });
       
-      // Process the queue
       await processQueue();
       
       Alert.alert(
         'Upload Queued',
-        `${images.length} image(s) and ${sound ? '1 voice note' : 'no voice notes'} have been added to the upload queue. ` +
-        `They will be uploaded when you have an internet connection.`,
+        `${images.length} image(s) and ${sound ? '1 voice note' : 'no voice notes'} have been added to the upload queue.`,
         [{ 
           text: 'OK', 
           onPress: () => {
-            // Reset form but keep images in case user wants to add more
             setDescription('');
             setTags('');
             setSound(null);
@@ -364,7 +352,6 @@ export default function SitePhotosScreen({ navigation }) {
       setIsUploading(false);
     }
   };
-  
   
   const clearQueue = async () => {
     Alert.alert(
@@ -423,7 +410,7 @@ export default function SitePhotosScreen({ navigation }) {
                     style={styles.removeImageButton}
                     onPress={() => removeImage(item.id)}
                   >
-                    <Text style={styles.removeImageButtonText}>×</Text>
+                    <Text style={styles.removeImageButtonText}>x</Text>
                   </TouchableOpacity>
                 </View>
               )}
@@ -544,7 +531,7 @@ export default function SitePhotosScreen({ navigation }) {
         <View style={styles.authSection}>
           {accessToken ? (
             <View style={styles.authStatus}>
-              <Text style={styles.authStatusText}>✓ Connected to Google Drive</Text>
+              <Text style={styles.authStatusText}>Connected to Google Drive</Text>
               <TouchableOpacity 
                 style={styles.signOutButton}
                 onPress={() => setAccessToken(null)}
@@ -559,7 +546,7 @@ export default function SitePhotosScreen({ navigation }) {
               disabled={isAuthenticating}
             >
               {isAuthenticating ? (
-                <ActivityIndicator color="white" />
+                <ActivityIndicator color={colors.white} />
               ) : (
                 <Text style={styles.authButtonText}>Sign in with Google</Text>
               )}
@@ -574,7 +561,7 @@ export default function SitePhotosScreen({ navigation }) {
             disabled={isUploading || images.length === 0}
           >
             {isUploading ? (
-              <ActivityIndicator color="white" />
+              <ActivityIndicator color={colors.white} />
             ) : (
               <Text style={styles.uploadButtonText}>
                 {images.length > 1 ? `Upload ${images.length} Images` : 'Upload to Google Drive'}
@@ -596,7 +583,7 @@ export default function SitePhotosScreen({ navigation }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: colors.muted,
   },
   scrollContent: {
     padding: 20,
@@ -606,13 +593,13 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     marginBottom: 10,
     textAlign: 'center',
-    color: '#333',
+    color: colors.primary,
   },
   subtitle: {
     fontSize: 16,
     marginBottom: 30,
     textAlign: 'center',
-    color: '#666',
+    color: colors.secondary,
   },
   buttonRow: {
     flexDirection: 'row',
@@ -620,7 +607,7 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   actionButton: {
-    backgroundColor: '#2196F3',
+    backgroundColor: colors.secondary,
     paddingVertical: 12,
     paddingHorizontal: 20,
     borderRadius: 8,
@@ -628,26 +615,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   actionButtonText: {
-    color: 'white',
+    color: colors.white,
     fontSize: 16,
     fontWeight: '600',
   },
   recordingButton: {
-    backgroundColor: '#f44336',
-  },
-  imageContainer: {
-    alignItems: 'center',
-    marginBottom: 20,
-  },
-  image: {
-    width: 300,
-    height: 225,
-    borderRadius: 10,
-    marginBottom: 10,
-  },
-  imageInfo: {
-    fontSize: 14,
-    color: '#666',
+    backgroundColor: colors.error,
   },
   section: {
     marginBottom: 20,
@@ -656,7 +629,7 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '600',
     marginBottom: 10,
-    color: '#333',
+    color: colors.primary,
   },
   input: {
     borderWidth: 1,
@@ -664,74 +637,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     padding: 12,
     fontSize: 16,
-    backgroundColor: 'white',
-  },
-  uploadSection: {
-    marginTop: 20,
-    alignItems: 'center',
-  },
-  uploadButton: {
-    backgroundColor: '#4CAF50',
-    paddingVertical: 16,
-    paddingHorizontal: 30,
-    borderRadius: 10,
-    alignItems: 'center',
-    minWidth: 200,
-  },
-  uploadButtonDisabled: {
-    backgroundColor: '#a5d6a7',
-  },
-  uploadButtonText: {
-    color: 'white',
-    fontSize: 18,
-    fontWeight: 'bold',
-  },
-  authSection: {
-    marginBottom: 20,
-  },
-  authButton: {
-    backgroundColor: '#4285F4',
-    paddingVertical: 12,
-    paddingHorizontal: 20,
-    borderRadius: 8,
-    alignItems: 'center',
-  },
-  authButtonText: {
-    color: 'white',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  authStatus: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    backgroundColor: '#E8F5E9',
-    padding: 12,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#C8E6C9',
-  },
-  authStatusText: {
-    color: '#2E7D32',
-    fontSize: 14,
-    fontWeight: '500',
-  },
-  signOutButton: {
-    backgroundColor: '#f44336',
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderRadius: 4,
-  },
-  signOutButtonText: {
-    color: 'white',
-    fontSize: 12,
-    fontWeight: '500',
-  },
-  uploadHelpText: {
-    marginTop: 10,
-    fontSize: 14,
-    color: '#666',
-    fontStyle: 'italic',
+    backgroundColor: colors.white,
   },
   field: {
     marginBottom: 15,
@@ -740,26 +646,13 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '500',
     marginBottom: 5,
-    color: '#555',
+    color: colors.secondary,
   },
   helpText: {
     fontSize: 12,
-    color: '#888',
+    color: colors.secondary,
     marginTop: 5,
     fontStyle: 'italic',
-  },
-  locationInfo: {
-    marginTop: 10,
-    padding: 10,
-    backgroundColor: '#f0f8ff',
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#d1e7ff',
-  },
-  locationText: {
-    fontSize: 14,
-    color: '#1565C0',
-    fontWeight: '500',
   },
   imagesSection: {
     marginBottom: 20,
@@ -770,131 +663,61 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 10,
   },
-  settingsRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginTop: 10,
-  },
-  settingsButton: {
-    backgroundColor: '#2196F3',
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderRadius: 4,
-  },
-  settingsButtonText: {
-    color: 'white',
-    fontSize: 12,
-    fontWeight: '500',
-  },
-  settingRow: {
-    marginBottom: 15,
-  },
-  settingLabel: {
-    fontSize: 16,
-    fontWeight: '500',
-    marginBottom: 5,
-    color: '#555',
-  },
-  sessionHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 5,
-  },
-  editButton: {
-    backgroundColor: '#FF9800',
-    paddingVertical: 4,
-    paddingHorizontal: 8,
-    borderRadius: 4,
-  },
-  editButtonText: {
-    color: 'white',
-    fontSize: 12,
-  },
-  sessionTags: {
-    flexDirection: 'row',
-    marginTop: 5,
-  },
-  tag: {
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 4,
-    marginRight: 5,
-  },
-  breakTag: {
-    backgroundColor: '#FFEB3B',
-  },
-  nonBillableTag: {
-    backgroundColor: '#9E9E9E',
-  },
-  tagText: {
-    fontSize: 10,
-    fontWeight: '500',
-  },
-  sessionActions: {
-    flexDirection: 'row',
-  },
-  syncButton: {
-    backgroundColor: '#4CAF50',
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderRadius: 4,
-    marginRight: 10,
-  },
-  syncButtonText: {
-    color: 'white',
-    fontSize: 12,
-    fontWeight: '500',
-  },
-  smallButton: {
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderRadius: 4,
-  },
   clearButton: {
-    backgroundColor: '#f44336',
+    padding: 5,
   },
   clearButtonText: {
-    color: 'white',
-    fontSize: 12,
-    fontWeight: '500',
+    color: colors.error,
+    fontSize: 14,
   },
   imagesList: {
-    paddingVertical: 5,
+    paddingVertical: 10,
   },
   imageThumbnailContainer: {
     position: 'relative',
     marginRight: 10,
   },
   imageThumbnail: {
-    width: 80,
-    height: 80,
+    width: 100,
+    height: 100,
     borderRadius: 8,
   },
   removeImageButton: {
     position: 'absolute',
-    top: -5,
-    right: -5,
-    backgroundColor: '#f44336',
-    width: 20,
-    height: 20,
-    borderRadius: 10,
+    top: -8,
+    right: -8,
+    backgroundColor: colors.error,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
     justifyContent: 'center',
     alignItems: 'center',
   },
   removeImageButtonText: {
-    color: 'white',
+    color: colors.white,
     fontSize: 14,
     fontWeight: 'bold',
   },
+  locationInfo: {
+    backgroundColor: colors.white,
+    padding: 15,
+    borderRadius: 8,
+  },
+  locationText: {
+    fontSize: 14,
+    color: colors.foreground,
+  },
+  recordingText: {
+    textAlign: 'center',
+    color: colors.error,
+    marginTop: 10,
+    fontWeight: '600',
+  },
   queueSection: {
-    marginBottom: 20,
-    backgroundColor: '#f8f9fa',
+    backgroundColor: colors.white,
     padding: 15,
     borderRadius: 10,
-    borderWidth: 1,
-    borderColor: '#e9ecef',
+    marginBottom: 20,
   },
   queueStats: {
     flexDirection: 'row',
@@ -907,45 +730,96 @@ const styles = StyleSheet.create({
   queueStatValue: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: '#333',
+    color: colors.foreground,
   },
   queueStatLabel: {
     fontSize: 12,
-    color: '#666',
-    marginTop: 2,
+    color: colors.secondary,
   },
   failedText: {
-    color: '#f44336',
+    color: colors.error,
   },
   completedText: {
-    color: '#4CAF50',
+    color: colors.success,
   },
   queueActions: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    justifyContent: 'space-around',
   },
   queueButton: {
-    flex: 1,
     paddingVertical: 10,
+    paddingHorizontal: 20,
     borderRadius: 8,
-    alignItems: 'center',
-    marginHorizontal: 5,
   },
   processButton: {
-    backgroundColor: '#2196F3',
+    backgroundColor: colors.accent,
   },
   clearQueueButton: {
-    backgroundColor: '#6c757d',
+    backgroundColor: colors.secondary,
   },
   queueButtonText: {
-    color: 'white',
+    color: colors.white,
     fontSize: 14,
     fontWeight: '600',
   },
-  recordingText: {
+  authSection: {
+    marginBottom: 20,
+  },
+  authButton: {
+    backgroundColor: colors.primary,
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  authButtonText: {
+    color: colors.white,
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  authStatus: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: colors.white,
+    padding: 15,
+    borderRadius: 8,
+  },
+  authStatusText: {
+    color: colors.success,
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  signOutButton: {
+    padding: 8,
+  },
+  signOutButtonText: {
+    color: colors.error,
+    fontSize: 14,
+  },
+  uploadSection: {
+    marginTop: 20,
+    alignItems: 'center',
+  },
+  uploadButton: {
+    backgroundColor: colors.accent,
+    paddingVertical: 16,
+    paddingHorizontal: 30,
+    borderRadius: 10,
+    alignItems: 'center',
+    minWidth: 200,
+  },
+  uploadButtonDisabled: {
+    backgroundColor: '#ccc',
+  },
+  uploadButtonText: {
+    color: colors.white,
+    fontSize: 18,
+    fontWeight: 'bold',
+  },
+  uploadHelpText: {
     marginTop: 10,
-    color: '#f44336',
-    textAlign: 'center',
-    fontStyle: 'italic',
+    color: colors.secondary,
+    fontSize: 14,
   },
 });

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, SafeAreaView, ScrollView, FlatList } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, SafeAreaView, FlatList } from 'react-native';
+import { colors } from '../theme';
 
-// Mock data for demonstration
 const mockReceipts = [
   { id: '1', merchant: 'Grocery Store', total: '$45.67', date: '2024-12-01', time: '10:30 AM' },
   { id: '2', merchant: 'Gas Station', total: '$32.50', date: '2024-12-02', time: '14:15 PM' },
@@ -58,29 +58,29 @@ export default function HistoryScreen({ navigation }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: colors.muted,
   },
   header: {
     padding: 20,
-    backgroundColor: 'white',
+    backgroundColor: colors.white,
     borderBottomWidth: 1,
     borderBottomColor: '#eee',
   },
   title: {
     fontSize: 28,
     fontWeight: 'bold',
-    color: '#333',
+    color: colors.primary,
   },
   subtitle: {
     fontSize: 16,
-    color: '#666',
+    color: colors.secondary,
     marginTop: 5,
   },
   listContent: {
     padding: 20,
   },
   receiptCard: {
-    backgroundColor: 'white',
+    backgroundColor: colors.white,
     borderRadius: 10,
     padding: 15,
     marginBottom: 15,
@@ -99,16 +99,16 @@ const styles = StyleSheet.create({
   merchantText: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#333',
+    color: colors.foreground,
   },
   totalText: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: '#4CAF50',
+    color: colors.accent,
   },
   dateText: {
     fontSize: 14,
-    color: '#666',
+    color: colors.secondary,
   },
   emptyContainer: {
     flex: 1,
@@ -118,17 +118,17 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     fontSize: 20,
-    color: '#999',
+    color: colors.secondary,
     marginBottom: 20,
   },
   button: {
-    backgroundColor: '#4CAF50',
+    backgroundColor: colors.accent,
     paddingVertical: 15,
     paddingHorizontal: 30,
     borderRadius: 10,
   },
   buttonText: {
-    color: 'white',
+    color: colors.white,
     fontSize: 16,
     fontWeight: '600',
   },

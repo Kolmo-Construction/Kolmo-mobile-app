@@ -7,19 +7,31 @@ import ReviewScreen from './src/screens/ReviewScreen';
 import HistoryScreen from './src/screens/HistoryScreen';
 import SitePhotosScreen from './src/screens/SitePhotosScreen';
 import TimeZoneScreen from './src/screens/TimeZoneScreen';
+import { colors } from './src/theme';
 
 const Stack = createNativeStackNavigator();
 
 export default function App() {
   return (
     <NavigationContainer>
-      <Stack.Navigator initialRouteName="Home">
-        <Stack.Screen name="Home" component={HomeScreen} options={{ title: 'Kolmo Receipt Scanner' }} />
+      <Stack.Navigator 
+        initialRouteName="Home"
+        screenOptions={{
+          headerStyle: {
+            backgroundColor: colors.primary,
+          },
+          headerTintColor: colors.white,
+          headerTitleStyle: {
+            fontWeight: '600',
+          },
+        }}
+      >
+        <Stack.Screen name="Home" component={HomeScreen} options={{ title: 'Kolmo' }} />
         <Stack.Screen name="Camera" component={CameraScreen} options={{ title: 'Capture Receipt' }} />
         <Stack.Screen name="Review" component={ReviewScreen} options={{ title: 'Review & Edit' }} />
         <Stack.Screen name="History" component={HistoryScreen} options={{ title: 'Receipt History' }} />
-        <Stack.Screen name="SitePhotos" component={SitePhotosScreen} options={{ title: 'Site Photos & Voice Notes' }} />
-        <Stack.Screen name="TimeZone" component={TimeZoneScreen} options={{ title: 'TimeZone Auto Check-in' }} />
+        <Stack.Screen name="SitePhotos" component={SitePhotosScreen} options={{ title: 'Site Photos' }} />
+        <Stack.Screen name="TimeZone" component={TimeZoneScreen} options={{ title: 'TimeZone' }} />
       </Stack.Navigator>
     </NavigationContainer>
   );

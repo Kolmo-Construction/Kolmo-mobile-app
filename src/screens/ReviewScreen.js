@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, SafeAreaView, TextInput, ScrollView, Image, Alert, ActivityIndicator } from 'react-native';
 import { uploadReceipt } from '../services/kolmoApiService';
 import { processReceiptImage, normalizeReceiptData } from '../services/taggunService';
+import { colors } from '../theme';
 
 export default function ReviewScreen({ route, navigation }) {
   const { imageUri, receiptId, selectedProject } = route.params || {};
@@ -26,9 +27,7 @@ export default function ReviewScreen({ route, navigation }) {
   const processReceipt = useCallback(async () => {
     setIsLoading(true);
     try {
-      // If we have an imageUri, send it to our backend
       if (imageUri) {
-        // Prepare metadata including project ID
         const metadata = {
           projectId: projectId,
           timestamp: new Date().toISOString(),
@@ -47,7 +46,6 @@ export default function ReviewScreen({ route, navigation }) {
             date: normalizedData.date,
             time: normalizedData.time,
           });
-          // Set line items if available
           if (normalizedData.lineItems && normalizedData.lineItems.length > 0) {
             setLineItems(normalizedData.lineItems.map(item => ({
               ...item,
@@ -55,7 +53,6 @@ export default function ReviewScreen({ route, navigation }) {
               category: selectedCategory
             })));
           } else {
-            // Initialize with empty line item
             setLineItems([{
               id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
               description: '',
@@ -68,10 +65,7 @@ export default function ReviewScreen({ route, navigation }) {
           throw new Error('No data received from backend');
         }
       } 
-      // If we have a receiptId, load existing receipt data from backend
       else if (receiptId) {
-        // For now, we'll use mock data
-        // In a real app, you would fetch the receipt data from your backend
         await new Promise(resolve => setTimeout(resolve, 500));
         const mockBackendResponse = {
           success: true,
@@ -100,7 +94,6 @@ export default function ReviewScreen({ route, navigation }) {
           date: normalizedData.date,
           time: normalizedData.time,
         });
-        // Initialize line items for existing receipt
         setLineItems([{
           id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
           description: '',
@@ -206,7 +199,7 @@ export default function ReviewScreen({ route, navigation }) {
 
         {isLoading ? (
           <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color="#4CAF50" />
+            <ActivityIndicator size="large" color={colors.accent} />
             <Text style={styles.loadingText}>Processing receipt with OCR...</Text>
           </View>
         ) : receiptData ? (
@@ -307,7 +300,6 @@ export default function ReviewScreen({ route, navigation }) {
                 />
               </View>
 
-              {/* Confidence Visualization */}
               {(() => {
                 const confidence = receiptData?.confidence ?? receiptData?.data?.confidence ?? 0.5;
                 return (
@@ -319,8 +311,8 @@ export default function ReviewScreen({ route, navigation }) {
                         styles.confidenceFill, 
                         { 
                           width: `${(confidence * 100).toFixed(0)}%`,
-                          backgroundColor: confidence > 0.8 ? '#4CAF50' : 
-                                         confidence > 0.6 ? '#FF9800' : '#f44336'
+                          backgroundColor: confidence > 0.8 ? colors.success : 
+                                         confidence > 0.6 ? colors.accent : colors.error
                         }
                       ]} 
                     />
@@ -332,7 +324,6 @@ export default function ReviewScreen({ route, navigation }) {
                 );
               })()}
 
-              {/* Receipt Categorization */}
               <View style={styles.field}>
                 <Text style={styles.fieldLabel}>Category</Text>
                 <View style={styles.categoryContainer}>
@@ -356,7 +347,6 @@ export default function ReviewScreen({ route, navigation }) {
                 </View>
               </View>
 
-              {/* Line Items Section */}
               <View style={styles.field}>
                 <View style={styles.lineItemsHeader}>
                   <Text style={styles.fieldLabel}>Line Items</Text>
@@ -402,7 +392,6 @@ export default function ReviewScreen({ route, navigation }) {
                   </View>
                 ))}
                 
-                {/* Total from line items */}
                 {lineItems.length > 0 && (
                   <View style={styles.lineItemsTotal}>
                     <Text style={styles.totalLabel}>Line Items Total:</Text>
@@ -430,7 +419,7 @@ export default function ReviewScreen({ route, navigation }) {
               >
                 {isUploading ? (
                   <View style={styles.uploadingContainer}>
-                    <ActivityIndicator color="white" size="small" />
+                    <ActivityIndicator color={colors.white} size="small" />
                     <Text style={[styles.buttonText, { marginLeft: 8 }]}>Uploading...</Text>
                   </View>
                 ) : (
@@ -450,7 +439,7 @@ export default function ReviewScreen({ route, navigation }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: colors.muted,
   },
   scrollContent: {
     padding: 20,
@@ -460,7 +449,7 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     marginBottom: 20,
     textAlign: 'center',
-    color: '#333',
+    color: colors.primary,
   },
   imageContainer: {
     alignItems: 'center',
@@ -474,7 +463,7 @@ const styles = StyleSheet.create({
   },
   imageCaption: {
     fontSize: 14,
-    color: '#666',
+    color: colors.secondary,
   },
   loadingContainer: {
     alignItems: 'center',
@@ -483,10 +472,10 @@ const styles = StyleSheet.create({
   loadingText: {
     marginTop: 20,
     fontSize: 16,
-    color: '#666',
+    color: colors.secondary,
   },
   section: {
-    backgroundColor: 'white',
+    backgroundColor: colors.white,
     borderRadius: 10,
     padding: 20,
     marginBottom: 20,
@@ -500,7 +489,7 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: '600',
     marginBottom: 20,
-    color: '#444',
+    color: colors.primary,
   },
   field: {
     marginBottom: 15,
@@ -509,7 +498,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '500',
     marginBottom: 5,
-    color: '#555',
+    color: colors.secondary,
   },
   input: {
     borderWidth: 1,
@@ -517,29 +506,29 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     padding: 12,
     fontSize: 16,
-    backgroundColor: '#fafafa',
+    backgroundColor: colors.muted,
   },
   helpText: {
     fontSize: 12,
-    color: '#888',
+    color: colors.secondary,
     marginTop: 5,
     fontStyle: 'italic',
   },
   projectDisplay: {
-    backgroundColor: '#f0fff0',
+    backgroundColor: '#fff9f0',
     padding: 15,
     borderRadius: 8,
     borderWidth: 2,
-    borderColor: '#4CAF50',
+    borderColor: colors.accent,
   },
   projectName: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#4CAF50',
+    color: colors.accent,
   },
   projectClient: {
     fontSize: 14,
-    color: '#666',
+    color: colors.secondary,
     marginTop: 4,
   },
   notesInput: {
@@ -560,7 +549,7 @@ const styles = StyleSheet.create({
   },
   confidenceLabel: {
     fontSize: 14,
-    color: '#555',
+    color: colors.secondary,
     marginBottom: 5,
   },
   confidenceBar: {
@@ -576,7 +565,7 @@ const styles = StyleSheet.create({
   },
   confidenceText: {
     fontSize: 14,
-    color: '#666',
+    color: colors.secondary,
     textAlign: 'center',
   },
   categoryContainer: {
@@ -588,19 +577,19 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 16,
-    backgroundColor: '#f0f0f0',
+    backgroundColor: colors.muted,
     marginRight: 8,
     marginBottom: 8,
   },
   categoryButtonSelected: {
-    backgroundColor: '#4CAF50',
+    backgroundColor: colors.accent,
   },
   categoryButtonText: {
     fontSize: 14,
-    color: '#666',
+    color: colors.secondary,
   },
   categoryButtonTextSelected: {
-    color: 'white',
+    color: colors.white,
     fontWeight: '600',
   },
   lineItemsHeader: {
@@ -610,12 +599,12 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   addItemText: {
-    color: '#4CAF50',
+    color: colors.accent,
     fontSize: 14,
     fontWeight: '600',
   },
   lineItemContainer: {
-    backgroundColor: '#f9f9f9',
+    backgroundColor: colors.muted,
     padding: 15,
     borderRadius: 8,
     marginBottom: 10,
@@ -631,10 +620,10 @@ const styles = StyleSheet.create({
   lineItemNumber: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#555',
+    color: colors.secondary,
   },
   removeItemText: {
-    color: '#f44336',
+    color: colors.error,
     fontSize: 12,
   },
   lineItemRow: {
@@ -659,12 +648,12 @@ const styles = StyleSheet.create({
   totalLabel: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#333',
+    color: colors.foreground,
   },
   totalAmount: {
     fontSize: 16,
     fontWeight: 'bold',
-    color: '#4CAF50',
+    color: colors.accent,
   },
   buttonRow: {
     flexDirection: 'row',
@@ -672,7 +661,7 @@ const styles = StyleSheet.create({
     marginTop: 10,
   },
   button: {
-    backgroundColor: '#4CAF50',
+    backgroundColor: colors.accent,
     paddingVertical: 15,
     paddingHorizontal: 25,
     borderRadius: 10,
@@ -681,35 +670,35 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   buttonText: {
-    color: 'white',
+    color: colors.white,
     fontSize: 16,
     fontWeight: '600',
   },
   secondaryButton: {
     backgroundColor: 'transparent',
     borderWidth: 2,
-    borderColor: '#4CAF50',
+    borderColor: colors.accent,
   },
   secondaryButtonText: {
-    color: '#4CAF50',
+    color: colors.accent,
     fontSize: 16,
     fontWeight: '600',
   },
   savedReceiptText: {
     fontSize: 20,
     fontWeight: '600',
-    color: '#4CAF50',
+    color: colors.accent,
     marginBottom: 5,
   },
   savedReceiptSubtext: {
     fontSize: 14,
-    color: '#666',
+    color: colors.secondary,
     fontStyle: 'italic',
   },
   noDataText: {
     textAlign: 'center',
     fontSize: 16,
-    color: '#999',
+    color: colors.secondary,
     marginTop: 40,
   },
 });
