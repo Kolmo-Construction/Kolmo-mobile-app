@@ -3,7 +3,8 @@ import { View, Text, StyleSheet, TouchableOpacity, SafeAreaView, Alert, Activity
 import { Camera, useCameraPermissions } from 'expo-camera';
 import * as ImageManipulator from 'expo-image-manipulator';
 
-export default function CameraScreen({ navigation }) {
+export default function CameraScreen({ navigation, route }) {
+  const { selectedProject } = route.params || {};
   const [facing, setFacing] = useState('back');
   const [permission, requestPermission] = useCameraPermissions();
   const [isProcessing, setIsProcessing] = useState(false);
@@ -36,16 +37,15 @@ export default function CameraScreen({ navigation }) {
       try {
         const photo = await cameraRef.current.takePictureAsync();
         
-        // Compress and resize the image
         const manipulatedImage = await ImageManipulator.manipulateAsync(
           photo.uri,
           [{ resize: { width: 1024 } }],
           { compress: 0.7, format: ImageManipulator.SaveFormat.JPEG }
         );
         
-        // Navigate to review screen with the processed image
         navigation.navigate('Review', { 
           imageUri: manipulatedImage.uri,
+          selectedProject: selectedProject,
         });
       } catch (error) {
         Alert.alert('Error', 'Failed to capture image: ' + error.message);
@@ -61,6 +61,13 @@ export default function CameraScreen({ navigation }) {
 
   return (
     <SafeAreaView style={styles.container}>
+      {selectedProject && (
+        <View style={styles.projectBanner}>
+          <Text style={styles.projectBannerText}>
+            Project: {selectedProject.name || selectedProject.title || `Project ${selectedProject.id}`}
+          </Text>
+        </View>
+      )}
       <Camera style={styles.camera} type={facing} ref={cameraRef}>
         <View style={styles.overlay}>
           <View style={styles.guideFrame} />
@@ -91,6 +98,16 @@ export default function CameraScreen({ navigation }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+  },
+  projectBanner: {
+    backgroundColor: '#4CAF50',
+    padding: 10,
+    alignItems: 'center',
+  },
+  projectBannerText: {
+    color: 'white',
+    fontSize: 14,
+    fontWeight: '600',
   },
   camera: {
     flex: 1,

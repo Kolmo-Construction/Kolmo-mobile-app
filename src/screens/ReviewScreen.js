@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, SafeAreaView, TextInput, ScrollView, Image, Alert, ActivityIndicator } from 'react-native';
-import axios from 'axios';
+import { uploadReceipt } from '../services/kolmoApiService';
 import { processReceiptImage, normalizeReceiptData } from '../services/taggunService';
 
 export default function ReviewScreen({ route, navigation }) {
-  const { imageUri, receiptId } = route.params || {};
+  const { imageUri, receiptId, selectedProject } = route.params || {};
   const [isLoading, setIsLoading] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
   const [receiptData, setReceiptData] = useState(null);
   const [editableData, setEditableData] = useState({
     merchant: '',
@@ -18,8 +19,9 @@ export default function ReviewScreen({ route, navigation }) {
   const [lineItems, setLineItems] = useState([]);
   const [categories, setCategories] = useState(['Food', 'Transportation', 'Office Supplies', 'Equipment', 'Other']);
   const [selectedCategory, setSelectedCategory] = useState('Other');
+  const [notes, setNotes] = useState('');
 
-  const [projectId, setProjectId] = useState('default-project'); // Default or from user selection
+  const projectId = selectedProject?.id || selectedProject?._id || 'default-project';
 
   const processReceipt = useCallback(async () => {
     setIsLoading(true);
@@ -121,28 +123,34 @@ export default function ReviewScreen({ route, navigation }) {
     }
   }, [imageUri, receiptId, processReceipt]);
 
-  const handleSave = () => {
-    // Calculate total from line items if needed
-    const lineItemsTotal = lineItems.reduce((sum, item) => {
-      const amount = parseFloat(item.amount) || 0;
-      return sum + amount;
-    }, 0);
-    
-    // Prepare receipt data
-    const receiptDataToSave = {
-      ...editableData,
-      lineItems,
-      category: selectedCategory,
-      confidence: receiptData?.confidence || 0,
-      receiptId: receiptData?.receiptId || Date.now().toString(),
-      projectId,
-      timestamp: new Date().toISOString(),
-    };
-    
-    // Here you would save the receipt data to local storage or send to your backend
-    console.log('Saving receipt:', receiptDataToSave);
-    Alert.alert('Receipt Saved', 'The receipt has been saved successfully.');
-    navigation.navigate('History');
+  const handleSave = async () => {
+    if (!selectedProject) {
+      Alert.alert('Error', 'No project selected. Please go back and select a project.');
+      return;
+    }
+
+    if (!imageUri) {
+      Alert.alert('Error', 'No image to upload.');
+      return;
+    }
+
+    setIsUploading(true);
+    try {
+      const notesText = notes || `${editableData.merchant} - $${editableData.total} - ${editableData.date}`;
+      
+      await uploadReceipt(projectId, imageUri, selectedCategory, notesText);
+      
+      Alert.alert(
+        'Receipt Uploaded',
+        'The receipt has been successfully uploaded to the project.',
+        [{ text: 'OK', onPress: () => navigation.navigate('Home') }]
+      );
+    } catch (error) {
+      console.error('Upload error:', error);
+      Alert.alert('Upload Failed', error.message || 'Failed to upload receipt. Please try again.');
+    } finally {
+      setIsUploading(false);
+    }
   };
 
   const handleFieldChange = (field, value) => {
@@ -207,17 +215,30 @@ export default function ReviewScreen({ route, navigation }) {
               <Text style={styles.sectionTitle}>Project Information</Text>
               
               <View style={styles.field}>
-                <Text style={styles.fieldLabel}>Project ID</Text>
-                <TextInput
-                  style={styles.input}
-                  value={projectId}
-                  onChangeText={setProjectId}
-                  placeholder="Enter project ID"
-                  editable={!receiptId} // Only editable for new receipts
-                />
+                <Text style={styles.fieldLabel}>Project</Text>
+                <View style={styles.projectDisplay}>
+                  <Text style={styles.projectName}>
+                    {selectedProject?.name || selectedProject?.title || projectId}
+                  </Text>
+                  {selectedProject?.client && (
+                    <Text style={styles.projectClient}>{selectedProject.client}</Text>
+                  )}
+                </View>
                 <Text style={styles.helpText}>
-                  This receipt will be associated with this project
+                  This receipt will be uploaded to this project
                 </Text>
+              </View>
+
+              <View style={styles.field}>
+                <Text style={styles.fieldLabel}>Notes (optional)</Text>
+                <TextInput
+                  style={[styles.input, styles.notesInput]}
+                  value={notes}
+                  onChangeText={setNotes}
+                  placeholder="Add any notes about this receipt"
+                  multiline
+                  numberOfLines={3}
+                />
               </View>
             </View>
 
@@ -392,15 +413,24 @@ export default function ReviewScreen({ route, navigation }) {
               <TouchableOpacity 
                 style={[styles.button, styles.secondaryButton]}
                 onPress={() => navigation.goBack()}
+                disabled={isUploading}
               >
                 <Text style={styles.secondaryButtonText}>Retake Photo</Text>
               </TouchableOpacity>
               
               <TouchableOpacity 
-                style={styles.button}
+                style={[styles.button, isUploading && styles.buttonDisabled]}
                 onPress={handleSave}
+                disabled={isUploading}
               >
-                <Text style={styles.buttonText}>Save Receipt</Text>
+                {isUploading ? (
+                  <View style={styles.uploadingContainer}>
+                    <ActivityIndicator color="white" size="small" />
+                    <Text style={[styles.buttonText, { marginLeft: 8 }]}>Uploading...</Text>
+                  </View>
+                ) : (
+                  <Text style={styles.buttonText}>Upload Receipt</Text>
+                )}
               </TouchableOpacity>
             </View>
           </>
@@ -489,6 +519,35 @@ const styles = StyleSheet.create({
     color: '#888',
     marginTop: 5,
     fontStyle: 'italic',
+  },
+  projectDisplay: {
+    backgroundColor: '#f0fff0',
+    padding: 15,
+    borderRadius: 8,
+    borderWidth: 2,
+    borderColor: '#4CAF50',
+  },
+  projectName: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#4CAF50',
+  },
+  projectClient: {
+    fontSize: 14,
+    color: '#666',
+    marginTop: 4,
+  },
+  notesInput: {
+    height: 80,
+    textAlignVertical: 'top',
+  },
+  buttonDisabled: {
+    backgroundColor: '#ccc',
+  },
+  uploadingContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   confidenceContainer: {
     marginTop: 15,
