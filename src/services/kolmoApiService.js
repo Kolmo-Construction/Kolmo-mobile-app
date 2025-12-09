@@ -1,12 +1,9 @@
 import axios from 'axios';
 
-const KOLMO_API_URL = process.env.EXPO_PUBLIC_KOLMO_API_URL || process.env.KOLMO_API_URL || 'https://www.kolmo.design/api';
-const KOLMO_API_KEY = process.env.EXPO_PUBLIC_KOLMO_API_KEY || process.env.KOLMO_API_KEY || '';
-
 const kolmoApi = axios.create({
-  baseURL: KOLMO_API_URL,
+  baseURL: '/api/kolmo',
   headers: {
-    'Authorization': `Bearer ${KOLMO_API_KEY}`,
+    'Content-Type': 'application/json',
   },
 });
 
@@ -15,7 +12,7 @@ export const fetchProjects = async () => {
     const response = await kolmoApi.get('/projects');
     const projects = response.data;
     const activeProjects = projects.filter(
-      (p) => p.status === 'active' || p.status === 'in-progress' || p.status === 'in_progress'
+      (p) => p.status === 'active' || p.status === 'in-progress' || p.status === 'in_progress' || p.status === 'planning'
     );
     return activeProjects;
   } catch (error) {
@@ -48,11 +45,10 @@ export const uploadReceipt = async (projectId, imageUri, category = null, notes 
     }
 
     const response = await axios.post(
-      `${KOLMO_API_URL}/projects/${projectId}/receipts`,
+      `/api/kolmo/projects/${projectId}/receipts`,
       formData,
       {
         headers: {
-          'Authorization': `Bearer ${KOLMO_API_KEY}`,
           'Content-Type': 'multipart/form-data',
         },
         timeout: 60000,

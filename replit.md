@@ -29,6 +29,7 @@ A React Native / Expo mobile application for capturing receipts, documenting sit
 │   │   └── TimeZoneScreen.js
 │   └── services/          # Business logic services
 │       ├── googleDriveService.js
+│       ├── kolmoApiService.js   # Kolmo API integration
 │       ├── taggunService.js
 │       └── uploadQueueService.js
 ├── proxy.js               # Port forwarding for Replit
@@ -71,6 +72,15 @@ The project shows package version warnings for expo modules. These are compatibi
 (None recorded yet)
 
 ## Recent Changes
+- December 2024: Kolmo API Integration
+  - Added kolmoApiService.js for fetching projects and uploading receipts
+  - Updated proxy.js to handle API proxying (avoids CORS issues)
+  - API endpoint: https://www.kolmo.design/api (proxied through /api/kolmo)
+  - Updated HomeScreen with project selection
+  - Updated CameraScreen to pass selected project
+  - Updated ReviewScreen with upload functionality
+  - Secrets: KOLMO_API_KEY, EXPO_PUBLIC_KOLMO_API_KEY
+  
 - December 2024: Initial setup for Replit environment
   - Added proxy.js for port forwarding (5000 -> 19006)
   - Configured webpack for Replit's proxy requirements
