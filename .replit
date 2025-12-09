@@ -50,3 +50,4 @@ build = ["npm", "run", "web:build"]
 
 [userenv.shared]
 KOLMO_API_URL = "https://api.kolmo.design/api"
+EXPO_PUBLIC_KOLMO_API_URL = "https://api.kolmo.design/api"
