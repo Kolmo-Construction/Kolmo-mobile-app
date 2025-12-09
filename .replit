@@ -41,11 +41,12 @@ externalPort = 8081
 localPort = 19006
 externalPort = 3001
 
-[[ports]]
-localPort = 37893
-externalPort = 3002
-
 [deployment]
 deploymentTarget = "autoscale"
 run = ["npx", "serve", "dist", "-l", "5000"]
 build = ["npm", "run", "web:build"]
+
+[userenv]
+
+[userenv.shared]
+KOLMO_API_URL = "https://api.kolmo.design/api"
